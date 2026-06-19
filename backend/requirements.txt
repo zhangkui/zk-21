@@ -7,9 +7,11 @@ mysqlclient==2.2.0
 celery==5.3.4
 kombu==5.3.4
 amqp==5.1.1
+redis==5.0.1
 python-dotenv==1.0.0
 drf-yasg==1.21.7
 coreapi==2.3.3
 coreschema==0.0.4
 itypes==1.2.0
 uritemplate==4.1.1
+gevent==23.9.1
