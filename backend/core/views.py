@@ -11,39 +11,28 @@ from .serializers import SeaAreaSerializer, FarmerSerializer, CageSerializer, Ca
 
 class DashboardStatsView(APIView):
     def get(self, request):
+        from disease.models import DiseaseReport, MortalityReport
+        
         sea_areas = SeaArea.objects.count()
         cages = Cage.objects.count()
         farmers = Farmer.objects.count()
         
-        pending_disease = 0
-        pending_mortality = 0
-        try:
-            from disease.models import DiseaseReport, MortalityReport
-            pending_disease = DiseaseReport.objects.filter(status='pending').count()
-            pending_mortality = MortalityReport.objects.filter(status='pending').count()
-        except Exception:
-            pass
-        
+        pending_disease = DiseaseReport.objects.filter(status='pending').count()
+        pending_mortality = MortalityReport.objects.filter(status='pending').count()
         pending_reports = pending_disease + pending_mortality
         
         abnormal_cages = Cage.objects.filter(status='abnormal').count()
-        high_risk_areas = 0
         
-        try:
-            from disease.models import DiseaseReport, MortalityReport
-            seven_days_ago = timezone.now() - timedelta(days=7)
-            for area in SeaArea.objects.all():
-                area_cages = area.cages.all()
-                cage_ids = area_cages.values_list('id', flat=True)
-                abnormal = area_cages.filter(
-                    Q(disease_reports__status='pending') |
-                    Q(mortality_reports__status='pending') |
-                    Q(status='abnormal')
-                ).distinct().count()
-                if abnormal >= 3:
-                    high_risk_areas += 1
-        except Exception:
-            pass
+        high_risk_areas = 0
+        for area in SeaArea.objects.all():
+            area_cages = area.cages.all()
+            abnormal = area_cages.filter(
+                Q(disease_reports__status='pending') |
+                Q(mortality_reports__status='pending') |
+                Q(status='abnormal')
+            ).distinct().count()
+            if abnormal >= 3:
+                high_risk_areas += 1
         
         data = {
             'sea_areas': sea_areas,
@@ -60,159 +49,150 @@ class DashboardStatsView(APIView):
 
 class MonthlyTrendsView(APIView):
     def get(self, request):
-        try:
-            from disease.models import DiseaseReport, MortalityReport
-            trends = []
-            now = timezone.now()
+        from disease.models import DiseaseReport, MortalityReport
+        trends = []
+        now = timezone.now()
+        
+        for i in range(5, -1, -1):
+            month_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = now
+            else:
+                next_month = (now - timedelta(days=(i - 1) * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                month_end = next_month - timedelta(days=1)
             
-            for i in range(5, -1, -1):
-                month_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                if i == 0:
-                    month_end = now
-                else:
-                    next_month = (now - timedelta(days=(i - 1) * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    month_end = next_month - timedelta(days=1)
-                
-                disease_count = DiseaseReport.objects.filter(
+            disease_count = DiseaseReport.objects.filter(
+                report_time__gte=month_start,
+                report_time__lte=month_end
+            ).count()
+            
+            mortality_count = MortalityReport.objects.filter(
+                report_time__gte=month_start,
+                report_time__lte=month_end
+            ).count()
+            
+            total_mortality = sum(
+                r.mortality_count for r in MortalityReport.objects.filter(
                     report_time__gte=month_start,
                     report_time__lte=month_end
-                ).count()
-                
-                mortality_count = MortalityReport.objects.filter(
-                    report_time__gte=month_start,
-                    report_time__lte=month_end
-                ).count()
-                
-                total_mortality = sum(
-                    r.mortality_count for r in MortalityReport.objects.filter(
-                        report_time__gte=month_start,
-                        report_time__lte=month_end
-                    )
                 )
-                
-                trends.append({
-                    'month': month_start.strftime('%Y-%m'),
-                    'disease_reports': disease_count,
-                    'mortality_reports': mortality_count,
-                    'total_mortality': total_mortality,
-                })
+            )
             
-            return Response(trends)
-        except Exception as e:
-            return Response([])
+            trends.append({
+                'month': month_start.strftime('%Y-%m'),
+                'disease_reports': disease_count,
+                'mortality_reports': mortality_count,
+                'total_mortality': total_mortality,
+            })
+        
+        return Response(trends)
 
 
 class HeatmapDataView(APIView):
     def get(self, request):
-        try:
-            from disease.models import DiseaseReport, MortalityReport
-            data = []
-            seven_days_ago = timezone.now() - timedelta(days=7)
+        from disease.models import DiseaseReport, MortalityReport
+        data = []
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        
+        for area in SeaArea.objects.all():
+            cages = area.cages.all()
+            cage_ids = cages.values_list('id', flat=True)
             
-            for area in SeaArea.objects.all():
-                cages = area.cages.all()
-                cage_ids = cages.values_list('id', flat=True)
-                
-                disease_reports = DiseaseReport.objects.filter(
-                    cage_id__in=cage_ids,
-                    report_time__gte=seven_days_ago
-                ).count()
-                
-                mortality_reports = MortalityReport.objects.filter(
-                    cage_id__in=cage_ids,
-                    report_time__gte=seven_days_ago
-                ).count()
-                
-                abnormal_cages = cages.filter(
-                    Q(disease_reports__status='pending') |
-                    Q(mortality_reports__status='pending') |
-                    Q(status='abnormal')
-                ).distinct().count()
-                
-                total_cages = cages.count()
-                risk_score = 0
-                if total_cages > 0:
-                    risk_score = (abnormal_cages / total_cages) * 50 + (disease_reports + mortality_reports) * 2
-                    risk_score = min(risk_score, 100)
-                
-                risk_level = 'low'
-                if risk_score >= 50:
-                    risk_level = 'high'
-                elif risk_score >= 20:
-                    risk_level = 'medium'
-                
-                data.append({
-                    'sea_area_id': area.id,
-                    'sea_area_name': area.name,
-                    'location': area.location,
-                    'lat': (area.lat_min + area.lat_max) / 2 if area.lat_min and area.lat_max else 0,
-                    'lng': (area.lng_min + area.lng_max) / 2 if area.lng_min and area.lng_max else 0,
-                    'total_cages': total_cages,
-                    'abnormal_cages': abnormal_cages,
-                    'disease_reports': disease_reports,
-                    'mortality_reports': mortality_reports,
-                    'risk_score': risk_score,
-                    'risk_level': risk_level,
-                })
+            disease_reports = DiseaseReport.objects.filter(
+                cage_id__in=cage_ids,
+                report_time__gte=seven_days_ago
+            ).count()
             
-            return Response(data)
-        except Exception as e:
-            return Response([])
+            mortality_reports = MortalityReport.objects.filter(
+                cage_id__in=cage_ids,
+                report_time__gte=seven_days_ago
+            ).count()
+            
+            abnormal_cages = cages.filter(
+                Q(disease_reports__status='pending') |
+                Q(mortality_reports__status='pending') |
+                Q(status='abnormal')
+            ).distinct().count()
+            
+            total_cages = cages.count()
+            risk_score = 0
+            if total_cages > 0:
+                risk_score = (abnormal_cages / total_cages) * 50 + (disease_reports + mortality_reports) * 2
+                risk_score = min(risk_score, 100)
+            
+            risk_level = 'low'
+            if risk_score >= 50:
+                risk_level = 'high'
+            elif risk_score >= 20:
+                risk_level = 'medium'
+            
+            data.append({
+                'sea_area_id': area.id,
+                'sea_area_name': area.name,
+                'location': area.location,
+                'lat': (area.lat_min + area.lat_max) / 2 if area.lat_min and area.lat_max else 0,
+                'lng': (area.lng_min + area.lng_max) / 2 if area.lng_min and area.lng_max else 0,
+                'total_cages': total_cages,
+                'abnormal_cages': abnormal_cages,
+                'disease_reports': disease_reports,
+                'mortality_reports': mortality_reports,
+                'risk_score': risk_score,
+                'risk_level': risk_level,
+            })
+        
+        return Response(data)
 
 
 class FarmerResponsibilityView(APIView):
     def get(self, request):
-        try:
-            from disease.models import DiseaseReport, MortalityReport
-            data = []
+        from disease.models import DiseaseReport, MortalityReport
+        data = []
+        
+        for farmer in Farmer.objects.all():
+            cages = Cage.objects.filter(cage_farmers__farmer=farmer)
+            cage_ids = cages.values_list('id', flat=True)
             
-            for farmer in Farmer.objects.all():
-                cages = Cage.objects.filter(cage_farmers__farmer=farmer)
-                cage_ids = cages.values_list('id', flat=True)
-                
-                disease_reports = DiseaseReport.objects.filter(cage_id__in=cage_ids).count()
-                mortality_reports = MortalityReport.objects.filter(cage_id__in=cage_ids).count()
-                
-                pending_disease = DiseaseReport.objects.filter(
-                    cage_id__in=cage_ids, status='pending'
-                ).count()
-                
-                pending_mortality = MortalityReport.objects.filter(
-                    cage_id__in=cage_ids, status='pending'
-                ).count()
-                
-                anomaly_disease = DiseaseReport.objects.filter(
-                    cage_id__in=cage_ids, is_anomaly=True
-                ).count()
-                
-                anomaly_mortality = MortalityReport.objects.filter(
-                    cage_id__in=cage_ids, is_anomaly=True
-                ).count()
-                
-                total_mortality = sum(
-                    r.mortality_count for r in MortalityReport.objects.filter(cage_id__in=cage_ids)
-                )
-                
-                data.append({
-                    'farmer_id': farmer.id,
-                    'farmer_name': farmer.name,
-                    'phone': farmer.phone,
-                    'sea_area': farmer.sea_area.name if farmer.sea_area else None,
-                    'cage_count': cages.count(),
-                    'disease_reports': disease_reports,
-                    'mortality_reports': mortality_reports,
-                    'pending_disease': pending_disease,
-                    'pending_mortality': pending_mortality,
-                    'anomaly_disease': anomaly_disease,
-                    'anomaly_mortality': anomaly_mortality,
-                    'total_mortality': total_mortality,
-                    'responsibility_score': pending_disease + pending_mortality + anomaly_disease + anomaly_mortality,
-                })
+            disease_reports = DiseaseReport.objects.filter(cage_id__in=cage_ids).count()
+            mortality_reports = MortalityReport.objects.filter(cage_id__in=cage_ids).count()
             
-            data.sort(key=lambda x: x['responsibility_score'], reverse=True)
-            return Response(data)
-        except Exception as e:
-            return Response([])
+            pending_disease = DiseaseReport.objects.filter(
+                cage_id__in=cage_ids, status='pending'
+            ).count()
+            
+            pending_mortality = MortalityReport.objects.filter(
+                cage_id__in=cage_ids, status='pending'
+            ).count()
+            
+            anomaly_disease = DiseaseReport.objects.filter(
+                cage_id__in=cage_ids, is_anomaly=True
+            ).count()
+            
+            anomaly_mortality = MortalityReport.objects.filter(
+                cage_id__in=cage_ids, is_anomaly=True
+            ).count()
+            
+            total_mortality = sum(
+                r.mortality_count for r in MortalityReport.objects.filter(cage_id__in=cage_ids)
+            )
+            
+            data.append({
+                'farmer_id': farmer.id,
+                'farmer_name': farmer.name,
+                'phone': farmer.phone,
+                'sea_area': farmer.sea_area.name if farmer.sea_area else None,
+                'cage_count': cages.count(),
+                'disease_reports': disease_reports,
+                'mortality_reports': mortality_reports,
+                'pending_disease': pending_disease,
+                'pending_mortality': pending_mortality,
+                'anomaly_disease': anomaly_disease,
+                'anomaly_mortality': anomaly_mortality,
+                'total_mortality': total_mortality,
+                'responsibility_score': pending_disease + pending_mortality + anomaly_disease + anomaly_mortality,
+            })
+        
+        data.sort(key=lambda x: x['responsibility_score'], reverse=True)
+        return Response(data)
 
 
 class SeaAreaViewSet(viewsets.ModelViewSet):

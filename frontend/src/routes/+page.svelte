@@ -18,6 +18,7 @@
   let highRiskAreas: HighRiskArea[] = [];
   let recentReports: RecentReport[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
 
   const statusColors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -115,49 +116,9 @@
       monthlyTrends = trendsRes.data;
       highRiskAreas = riskRes.data;
       recentReports = reportsRes.data;
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-      stats = { sea_areas_count: 12, cages_count: 156, farmers_count: 89, pending_reports_count: 23 };
-      monthlyTrends = [
-        { month: '1月', disease_count: 5, mortality_count: 2, inspection_count: 15 },
-        { month: '2月', disease_count: 8, mortality_count: 4, inspection_count: 18 },
-        { month: '3月', disease_count: 12, mortality_count: 6, inspection_count: 22 },
-        { month: '4月', disease_count: 15, mortality_count: 8, inspection_count: 25 },
-        { month: '5月', disease_count: 10, mortality_count: 5, inspection_count: 20 },
-        { month: '6月', disease_count: 7, mortality_count: 3, inspection_count: 16 }
-      ];
-      highRiskAreas = [
-        { id: 1, name: '东海区 A1', lat: 30.1, lng: 120.2, risk_score: 85, risk_level: 'critical' },
-        { id: 2, name: '东海区 A2', lat: 30.15, lng: 120.25, risk_score: 72, risk_level: 'high' },
-        { id: 3, name: '南海区 B1', lat: 22.3, lng: 113.5, risk_score: 58, risk_level: 'medium' },
-        { id: 4, name: '南海区 B2', lat: 22.35, lng: 113.55, risk_score: 35, risk_level: 'low' }
-      ];
-      recentReports = [
-        {
-          id: 1,
-          type: 'disease',
-          cage_code: 'C-001',
-          report_time: '2026-06-18T10:30:00',
-          status: 'pending',
-          description: '发现鱼体表面有溃疡'
-        },
-        {
-          id: 2,
-          type: 'mortality',
-          cage_code: 'C-015',
-          report_time: '2026-06-18T09:15:00',
-          status: 'processing',
-          description: '死亡约50尾，原因待查'
-        },
-        {
-          id: 3,
-          type: 'disease',
-          cage_code: 'C-008',
-          report_time: '2026-06-17T14:20:00',
-          status: 'resolved',
-          description: '寄生虫感染，已处理'
-        }
-      ];
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

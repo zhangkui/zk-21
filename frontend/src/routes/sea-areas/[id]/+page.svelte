@@ -8,6 +8,7 @@
 
   let seaArea: SeaArea | null = null;
   let loading = true;
+  let errorMsg: string | null = null;
 
   const cageColumns = [
     { key: 'id', label: 'ID' },
@@ -58,45 +59,9 @@
     try {
       const res = await seaAreaApi.getById(parseInt(id));
       seaArea = res.data;
-    } catch (error) {
-      console.error('Failed to load sea area:', error);
-      seaArea = {
-        id: parseInt(id),
-        name: '东海区 A1',
-        location: '浙江省舟山市',
-        area: 120.5,
-        depth: 25.5,
-        lat_min: 29.9,
-        lat_max: 30.1,
-        lng_min: 122.1,
-        lng_max: 122.3,
-        description: '主要养殖大黄鱼',
-        created_at: '2026-01-01',
-        updated_at: '2026-06-01',
-        cages: [
-          {
-            id: 1,
-            code: 'C-001',
-            location: '东海区 A1-1',
-            capacity: 5000,
-            species: '大黄鱼',
-            status: 'normal',
-            created_at: '2026-01-01',
-            updated_at: '2026-06-01'
-          } as Cage,
-          {
-            id: 2,
-            code: 'C-002',
-            location: '东海区 A1-2',
-            capacity: 8000,
-            species: '大黄鱼',
-            status: 'maintenance',
-            created_at: '2026-01-15',
-            updated_at: '2026-05-20'
-          } as Cage
-        ],
-        farmers: []
-      };
+    } catch (err) {
+      console.error('Failed to load sea area:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

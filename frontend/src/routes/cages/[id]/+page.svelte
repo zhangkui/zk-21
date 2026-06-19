@@ -7,6 +7,7 @@
 
   let cage: Cage | null = null;
   let loading = true;
+  let errorMsg: string | null = null;
   let activeTab = 'basic';
 
   const statusMap: Record<string, { label: string; class: string }> = {
@@ -132,30 +133,9 @@
     try {
       const res = await cageApi.getById(parseInt(id));
       cage = res.data;
-    } catch (error) {
-      console.error('Failed to load cage:', error);
-      cage = {
-        id: parseInt(id),
-        code: 'C-001',
-        sea_area: 1,
-        sea_area_name: '东海区 A1',
-        location: '东海区 A1-1',
-        capacity: 5000,
-        species: '大黄鱼',
-        stocking_date: '2026-01-01',
-        status: 'normal',
-        area: 100,
-        created_at: '2026-01-01',
-        updated_at: '2026-06-01',
-        inspection_points: [
-          { id: 1, record: 1, cage: parseInt(id), check_time: '2026-06-15T09:30:00', water_temperature: 25.5, salinity: 32.1, ph_value: 7.8, water_quality: 'good', has_abnormality: false, created_at: '2026-06-15', updated_at: '2026-06-15' },
-          { id: 2, record: 1, cage: parseInt(id), check_time: '2026-06-10T10:00:00', water_temperature: 26.2, salinity: 31.8, ph_value: 7.6, water_quality: 'fair', abnormal_condition: '水质略有浑浊', has_abnormality: true, created_at: '2026-06-10', updated_at: '2026-06-10' }
-        ] as InspectionPoint[],
-        disease_reports: [
-          { id: 1, cage: parseInt(id), cage_code: 'C-001', reporter: '张三', report_time: '2026-06-05T14:30:00', disease_type: 'parasitic', severity: 'mild', description: '发现少量寄生虫', status: 'resolved', is_anomaly: false, anomaly_score: 0, created_at: '2026-06-05', updated_at: '2026-06-07' }
-        ] as DiseaseReport[],
-        mortality_reports: [] as MortalityReport[]
-      };
+    } catch (err) {
+      console.error('Failed to load cage:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

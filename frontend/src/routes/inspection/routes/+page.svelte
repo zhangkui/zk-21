@@ -8,6 +8,7 @@
   let routes: InspectionRoute[] = [];
   let cages: Cage[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let editingRoute: Partial<InspectionRoute> | null = null;
 
@@ -52,17 +53,9 @@
       ]);
       routes = routesRes.data.results;
       cages = cagesRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      routes = [
-        { id: 1, name: '东海区 A 线', description: '覆盖东海区 A1-A5 网箱', cages: [1, 2, 3, 4, 5], creator: '管理员', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, name: '南海区 B 线', description: '覆盖南海区 B1-B10 网箱', cages: [6, 7, 8, 9, 10], creator: '管理员', created_at: '2026-01-15', updated_at: '2026-05-20' }
-      ];
-      cages = [
-        { id: 1, code: 'C-001', location: '东海区 A1-1', capacity: 5000, status: 'normal', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, code: 'C-002', location: '东海区 A1-2', capacity: 8000, status: 'maintenance', created_at: '2026-01-15', updated_at: '2026-05-20' },
-        { id: 3, code: 'C-003', location: '东海区 A1-3', capacity: 10000, status: 'abnormal', created_at: '2026-02-01', updated_at: '2026-06-10' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

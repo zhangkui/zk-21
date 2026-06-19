@@ -8,6 +8,7 @@
   let reports: MortalityReport[] = [];
   let cages: Cage[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let statusFilter = '';
 
@@ -104,18 +105,9 @@
         cage_code: cagesRes.data.results.find((c) => c.id === r.cage)?.code || '-'
       }));
       cages = cagesRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      reports = [
-        { id: 1, cage: 1, cage_code: 'C-001', reporter: '张三', report_time: '2026-06-18T09:15:00', mortality_count: 50, cause: 'unknown', description: '发现约50尾死亡，原因待查', status: 'pending', is_anomaly: true, anomaly_score: 65.0, created_at: '2026-06-18', updated_at: '2026-06-18' },
-        { id: 2, cage: 3, cage_code: 'C-003', reporter: '李四', report_time: '2026-06-16T11:00:00', mortality_count: 200, cause: 'disease', description: '疾病导致大量死亡', status: 'processing', is_anomaly: true, anomaly_score: 88.5, treated_by: '王医生', created_at: '2026-06-16', updated_at: '2026-06-17' },
-        { id: 3, cage: 2, cage_code: 'C-002', reporter: '王五', report_time: '2026-06-10T14:30:00', mortality_count: 10, cause: 'predation', description: '敌害生物入侵', status: 'resolved', is_anomaly: false, anomaly_score: 0, treated_by: '李专家', treatment_method: '设置防护网，清理敌害', treatment_time: '2026-06-11T10:00:00', created_at: '2026-06-10', updated_at: '2026-06-12' }
-      ];
-      cages = [
-        { id: 1, code: 'C-001', location: '东海区 A1-1', capacity: 5000, status: 'normal', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, code: 'C-002', location: '东海区 A1-2', capacity: 8000, status: 'maintenance', created_at: '2026-01-15', updated_at: '2026-05-20' },
-        { id: 3, code: 'C-003', location: '东海区 A1-3', capacity: 10000, status: 'abnormal', created_at: '2026-02-01', updated_at: '2026-06-10' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

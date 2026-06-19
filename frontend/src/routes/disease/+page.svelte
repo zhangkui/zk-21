@@ -8,6 +8,7 @@
   let reports: DiseaseReport[] = [];
   let cages: Cage[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let statusFilter = '';
 
@@ -125,18 +126,9 @@
         cage_code: cagesRes.data.results.find((c) => c.id === r.cage)?.code || '-'
       }));
       cages = cagesRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      reports = [
-        { id: 1, cage: 1, cage_code: 'C-001', reporter: '张三', report_time: '2026-06-18T10:30:00', disease_type: 'bacterial', severity: 'mild', description: '发现鱼体表面有溃疡', status: 'pending', is_anomaly: false, anomaly_score: 0, created_at: '2026-06-18', updated_at: '2026-06-18' },
-        { id: 2, cage: 3, cage_code: 'C-003', reporter: '李四', report_time: '2026-06-17T14:20:00', disease_type: 'parasitic', severity: 'severe', description: '大量寄生虫感染', status: 'processing', is_anomaly: true, anomaly_score: 85.5, treated_by: '王医生', created_at: '2026-06-17', updated_at: '2026-06-18' },
-        { id: 3, cage: 2, cage_code: 'C-002', reporter: '王五', report_time: '2026-06-15T09:00:00', disease_type: 'viral', severity: 'critical', description: '病毒性感染，大量死亡', status: 'resolved', is_anomaly: true, anomaly_score: 95.0, treated_by: '李专家', treatment_method: '使用抗病毒药物，全池消毒', treatment_time: '2026-06-16T10:00:00', created_at: '2026-06-15', updated_at: '2026-06-17' }
-      ];
-      cages = [
-        { id: 1, code: 'C-001', location: '东海区 A1-1', capacity: 5000, status: 'normal', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, code: 'C-002', location: '东海区 A1-2', capacity: 8000, status: 'maintenance', created_at: '2026-01-15', updated_at: '2026-05-20' },
-        { id: 3, code: 'C-003', location: '东海区 A1-3', capacity: 10000, status: 'abnormal', created_at: '2026-02-01', updated_at: '2026-06-10' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

@@ -7,6 +7,7 @@
 
   let report: MortalityReport | null = null;
   let loading = true;
+  let errorMsg: string | null = null;
   let treatmentModalOpen = false;
 
   let treatmentForm = {
@@ -40,23 +41,9 @@
     try {
       const res = await mortalityReportApi.getById(parseInt(id));
       report = res.data;
-    } catch (error) {
-      console.error('Failed to load report:', error);
-      report = {
-        id: parseInt(id),
-        cage: 1,
-        cage_code: 'C-001',
-        reporter: '张三',
-        report_time: '2026-06-18T09:15:00',
-        mortality_count: 50,
-        cause: 'unknown',
-        description: '发现约50尾死亡，鱼体表面无明显外伤，鳃部有轻微充血。近期水温变化较大，怀疑环境因素导致。',
-        status: 'pending',
-        is_anomaly: true,
-        anomaly_score: 65.0,
-        created_at: '2026-06-18T09:15:00',
-        updated_at: '2026-06-18T09:15:00'
-      };
+    } catch (err) {
+      console.error('Failed to load report:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

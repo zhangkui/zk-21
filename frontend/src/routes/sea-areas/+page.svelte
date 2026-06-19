@@ -7,6 +7,7 @@
 
   let seaAreas: SeaArea[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let editingArea: Partial<SeaArea> | null = null;
 
@@ -53,42 +54,9 @@
     try {
       const res = await seaAreaApi.getAll();
       seaAreas = res.data.results;
-    } catch (error) {
-      console.error('Failed to load sea areas:', error);
-      seaAreas = [
-        {
-          id: 1,
-          name: '东海区 A1',
-          location: '浙江省舟山市',
-          area: 120.5,
-          depth: 25.5,
-          lat_min: 29.9,
-          lat_max: 30.1,
-          lng_min: 122.1,
-          lng_max: 122.3,
-          description: '主要养殖大黄鱼',
-          created_at: '2026-01-01',
-          updated_at: '2026-06-01',
-          cages: [{ id: 1 } as any, { id: 2 } as any],
-          farmers: [{ id: 1 } as any]
-        },
-        {
-          id: 2,
-          name: '南海区 B1',
-          location: '广东省珠海市',
-          area: 200.0,
-          depth: 18.0,
-          lat_min: 21.8,
-          lat_max: 22.0,
-          lng_min: 113.4,
-          lng_max: 113.6,
-          description: '石斑鱼养殖基地',
-          created_at: '2026-02-01',
-          updated_at: '2026-05-15',
-          cages: [{ id: 3 } as any, { id: 4 } as any, { id: 5 } as any],
-          farmers: [{ id: 2 } as any, { id: 3 } as any]
-        }
-      ];
+    } catch (err) {
+      console.error('Failed to load sea areas:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

@@ -7,6 +7,7 @@
 
   let farmer: Farmer | null = null;
   let loading = true;
+  let errorMsg: string | null = null;
   let activeTab = 'basic';
 
   const cageColumns = [
@@ -39,24 +40,9 @@
     try {
       const res = await farmerApi.getById(parseInt(id));
       farmer = res.data;
-    } catch (error) {
-      console.error('Failed to load farmer:', error);
-      farmer = {
-        id: parseInt(id),
-        name: '张三',
-        phone: '13800138001',
-        id_card: '330102198001011234',
-        sea_area: 1,
-        sea_area_name: '东海区 A1',
-        scale: '大型',
-        registration_date: '2026-01-01',
-        contact_info: '微信：zhangsan888',
-        created_at: '2026-01-01',
-        updated_at: '2026-06-01',
-        cage_farmers: [
-          { id: 1, cage: 1, cage_code: 'C-001', farmer: parseInt(id), start_date: '2026-01-01', created_at: '2026-01-01' }
-        ]
-      };
+    } catch (err) {
+      console.error('Failed to load farmer:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

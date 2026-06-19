@@ -9,6 +9,7 @@
   let routes: InspectionRoute[] = [];
   let cages: Cage[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let executionModalOpen = false;
   let selectedRecord: InspectionRecord | null = null;
@@ -94,21 +95,9 @@
       }));
       routes = routesRes.data.results;
       cages = cagesRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      records = [
-        { id: 1, route: 1, route_name: '东海区 A 线', inspector: '巡检员A', start_time: '2026-06-18T08:00:00', end_time: '2026-06-18T12:00:00', status: 'completed', remarks: '一切正常', created_at: '2026-06-18', updated_at: '2026-06-18' },
-        { id: 2, route: 1, route_name: '东海区 A 线', inspector: '巡检员B', start_time: '2026-06-19T08:00:00', status: 'in_progress', created_at: '2026-06-19', updated_at: '2026-06-19' },
-        { id: 3, route: 2, route_name: '南海区 B 线', inspector: '巡检员C', status: 'pending', created_at: '2026-06-19', updated_at: '2026-06-19' }
-      ];
-      routes = [
-        { id: 1, name: '东海区 A 线', description: '覆盖东海区 A1-A5 网箱', cages: [1, 2, 3, 4, 5], created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, name: '南海区 B 线', description: '覆盖南海区 B1-B10 网箱', cages: [6, 7, 8, 9, 10], created_at: '2026-01-15', updated_at: '2026-05-20' }
-      ];
-      cages = [
-        { id: 1, code: 'C-001', location: '东海区 A1-1', capacity: 5000, status: 'normal', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, code: 'C-002', location: '东海区 A1-2', capacity: 8000, status: 'maintenance', created_at: '2026-01-15', updated_at: '2026-05-20' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

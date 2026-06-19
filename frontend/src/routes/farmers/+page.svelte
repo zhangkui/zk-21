@@ -8,6 +8,7 @@
   let farmers: Farmer[] = [];
   let seaAreas: SeaArea[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let editingFarmer: Partial<Farmer> | null = null;
 
@@ -50,17 +51,9 @@
         sea_area_name: f.sea_area ? seaAreasRes.data.results.find((s) => s.id === f.sea_area)?.name : '-'
       }));
       seaAreas = seaAreasRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      farmers = [
-        { id: 1, name: '张三', phone: '13800138001', id_card: '330102198001011234', sea_area: 1, sea_area_name: '东海区 A1', scale: '大型', registration_date: '2026-01-01', created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, name: '李四', phone: '13800138002', id_card: '330102198502022345', sea_area: 1, sea_area_name: '东海区 A1', scale: '中型', registration_date: '2026-01-15', created_at: '2026-01-15', updated_at: '2026-05-20' },
-        { id: 3, name: '王五', phone: '13800138003', id_card: '440402199003033456', sea_area: 2, sea_area_name: '南海区 B1', scale: '小型', registration_date: '2026-02-01', created_at: '2026-02-01', updated_at: '2026-06-10' }
-      ];
-      seaAreas = [
-        { id: 1, name: '东海区 A1', location: '浙江省舟山市', area: 120.5, created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, name: '南海区 B1', location: '广东省珠海市', area: 200.0, created_at: '2026-02-01', updated_at: '2026-05-15' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

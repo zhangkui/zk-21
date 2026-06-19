@@ -7,6 +7,7 @@
   import type { Farmer, DiseaseReport, MortalityReport, HighRiskArea } from '$lib/types';
 
   let loading = true;
+  let errorMsg: string | null = null;
   let diseaseTrendData: any = null;
   let mortalityData: any = null;
   let heatmapMarkers: { lat: number; lng: number; popup?: string; riskLevel?: string }[] = [];
@@ -70,32 +71,7 @@
       const mortalityReports = mortalityReportsRes.data.results;
       const farmers = farmerRes.data.results;
 
-      const months = ['1月', '2月', '3月', '4月', '5月', '6月'];
-      diseaseTrendData = {
-        labels: months,
-        datasets: [
-          {
-            label: '细菌性疾病',
-            data: [12, 19, 15, 25, 22, 18],
-            backgroundColor: 'rgba(239, 68, 68, 0.8)',
-          },
-          {
-            label: '寄生虫病',
-            data: [8, 12, 18, 15, 10, 6],
-            backgroundColor: 'rgba(245, 158, 11, 0.8)',
-          },
-          {
-            label: '病毒性疾病',
-            data: [3, 5, 8, 12, 10, 7],
-            backgroundColor: 'rgba(139, 92, 246, 0.8)',
-          },
-          {
-            label: '其他',
-            data: [2, 4, 3, 6, 5, 4],
-            backgroundColor: 'rgba(107, 114, 128, 0.8)',
-          }
-        ]
-      };
+      diseaseTrendData = diseaseRes.data;
 
       const mortalityByCause: Record<string, number> = {};
       mortalityReports.forEach((r) => {
@@ -118,16 +94,7 @@
         }]
       };
 
-      const heatmapData: HighRiskArea[] = [
-        { id: 1, name: '东海区 A1', lat: 30.1, lng: 120.2, risk_score: 85, risk_level: 'critical' },
-        { id: 2, name: '东海区 A2', lat: 30.15, lng: 120.25, risk_score: 72, risk_level: 'high' },
-        { id: 3, name: '东海区 A3', lat: 30.2, lng: 120.3, risk_score: 58, risk_level: 'medium' },
-        { id: 4, name: '南海区 B1', lat: 22.3, lng: 113.5, risk_score: 45, risk_level: 'medium' },
-        { id: 5, name: '南海区 B2', lat: 22.35, lng: 113.55, risk_score: 35, risk_level: 'low' },
-        { id: 6, name: '南海区 B3', lat: 22.4, lng: 113.6, risk_score: 78, risk_level: 'high' },
-        { id: 7, name: '黄海区 C1', lat: 35.5, lng: 120.0, risk_score: 25, risk_level: 'low' },
-        { id: 8, name: '黄海区 C2', lat: 35.6, lng: 120.1, risk_score: 92, risk_level: 'critical' }
-      ];
+      const heatmapData: HighRiskArea[] = heatmapRes.data;
 
       heatmapMarkers = heatmapData.map((area) => ({
         lat: area.lat,
@@ -157,59 +124,15 @@
 
         return {
           ...farmer,
-          cage_count: farmer.cage_farmers?.length || Math.floor(Math.random() * 5) + 1,
-          disease_count: farmerDiseaseCount || Math.floor(Math.random() * 8),
-          mortality_count: farmerMortalityCount || Math.floor(Math.random() * 5),
+          cage_count: farmer.cage_farmers?.length || 0,
+          disease_count: farmerDiseaseCount,
+          mortality_count: farmerMortalityCount,
           risk_level: riskLevel
         };
       });
-    } catch (error) {
-      console.error('Failed to load analytics data:', error);
-
-      diseaseTrendData = {
-        labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
-        datasets: [
-          { label: '细菌性疾病', data: [12, 19, 15, 25, 22, 18], backgroundColor: 'rgba(239, 68, 68, 0.8)' },
-          { label: '寄生虫病', data: [8, 12, 18, 15, 10, 6], backgroundColor: 'rgba(245, 158, 11, 0.8)' },
-          { label: '病毒性疾病', data: [3, 5, 8, 12, 10, 7], backgroundColor: 'rgba(139, 92, 246, 0.8)' },
-          { label: '其他', data: [2, 4, 3, 6, 5, 4], backgroundColor: 'rgba(107, 114, 128, 0.8)' }
-        ]
-      };
-
-      mortalityData = {
-        labels: ['疾病', '敌害', '环境因素', '投喂问题', '操作失误', '原因不明', '其他'],
-        datasets: [{
-          data: [450, 120, 280, 80, 45, 180, 65],
-          backgroundColor: [
-            'rgba(239, 68, 68, 0.8)',
-            'rgba(245, 158, 11, 0.8)',
-            'rgba(59, 130, 246, 0.8)',
-            'rgba(34, 197, 94, 0.8)',
-            'rgba(139, 92, 246, 0.8)',
-            'rgba(107, 114, 128, 0.8)',
-            'rgba(236, 72, 153, 0.8)'
-          ]
-        }]
-      };
-
-      heatmapMarkers = [
-        { lat: 30.1, lng: 120.2, riskLevel: 'critical', popup: '<div class="p-2"><h4 class="font-semibold">东海区 A1</h4><p class="text-sm">风险等级: 危急</p><p class="text-sm">风险分数: 85</p></div>' },
-        { lat: 30.15, lng: 120.25, riskLevel: 'high', popup: '<div class="p-2"><h4 class="font-semibold">东海区 A2</h4><p class="text-sm">风险等级: 高</p><p class="text-sm">风险分数: 72</p></div>' },
-        { lat: 30.2, lng: 120.3, riskLevel: 'medium', popup: '<div class="p-2"><h4 class="font-semibold">东海区 A3</h4><p class="text-sm">风险等级: 中</p><p class="text-sm">风险分数: 58</p></div>' },
-        { lat: 22.3, lng: 113.5, riskLevel: 'medium', popup: '<div class="p-2"><h4 class="font-semibold">南海区 B1</h4><p class="text-sm">风险等级: 中</p><p class="text-sm">风险分数: 45</p></div>' },
-        { lat: 22.35, lng: 113.55, riskLevel: 'low', popup: '<div class="p-2"><h4 class="font-semibold">南海区 B2</h4><p class="text-sm">风险等级: 低</p><p class="text-sm">风险分数: 35</p></div>' },
-        { lat: 22.4, lng: 113.6, riskLevel: 'high', popup: '<div class="p-2"><h4 class="font-semibold">南海区 B3</h4><p class="text-sm">风险等级: 高</p><p class="text-sm">风险分数: 78</p></div>' },
-        { lat: 35.5, lng: 120.0, riskLevel: 'low', popup: '<div class="p-2"><h4 class="font-semibold">黄海区 C1</h4><p class="text-sm">风险等级: 低</p><p class="text-sm">风险分数: 25</p></div>' },
-        { lat: 35.6, lng: 120.1, riskLevel: 'critical', popup: '<div class="p-2"><h4 class="font-semibold">黄海区 C2</h4><p class="text-sm">风险等级: 危急</p><p class="text-sm">风险分数: 92</p></div>' }
-      ];
-
-      farmerResponsibility = [
-        { id: 1, name: '张三', sea_area_name: '东海区 A1', cage_count: 5, disease_count: 8, mortality_count: 3, risk_level: 'high' },
-        { id: 2, name: '李四', sea_area_name: '东海区 A1', cage_count: 3, disease_count: 2, mortality_count: 1, risk_level: 'low' },
-        { id: 3, name: '王五', sea_area_name: '南海区 B1', cage_count: 8, disease_count: 12, mortality_count: 5, risk_level: 'critical' },
-        { id: 4, name: '赵六', sea_area_name: '南海区 B1', cage_count: 4, disease_count: 4, mortality_count: 2, risk_level: 'medium' },
-        { id: 5, name: '钱七', sea_area_name: '黄海区 C1', cage_count: 2, disease_count: 1, mortality_count: 0, risk_level: 'low' }
-      ];
+    } catch (err) {
+      console.error('Failed to load analytics data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

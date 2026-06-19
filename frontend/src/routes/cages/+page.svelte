@@ -8,6 +8,7 @@
   let cages: Cage[] = [];
   let seaAreas: SeaArea[] = [];
   let loading = true;
+  let errorMsg: string | null = null;
   let modalOpen = false;
   let editingCage: Partial<Cage> | null = null;
   let statusFilter = '';
@@ -78,16 +79,9 @@
         sea_area_name: c.sea_area ? seaAreasRes.data.results.find((s) => s.id === c.sea_area)?.name : '-'
       }));
       seaAreas = seaAreasRes.data.results;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      cages = [
-        { id: 1, code: 'C-001', sea_area: 1, sea_area_name: '东海区 A1', location: '东海区 A1-1', capacity: 5000, species: '大黄鱼', status: 'normal', area: 100, created_at: '2026-01-01', updated_at: '2026-06-01' },
-        { id: 2, code: 'C-002', sea_area: 1, sea_area_name: '东海区 A1', location: '东海区 A1-2', capacity: 8000, species: '大黄鱼', status: 'maintenance', area: 150, created_at: '2026-01-15', updated_at: '2026-05-20' },
-        { id: 3, code: 'C-003', sea_area: 2, sea_area_name: '南海区 B1', location: '南海区 B1-1', capacity: 10000, species: '石斑鱼', status: 'abnormal', area: 200, created_at: '2026-02-01', updated_at: '2026-06-10' }
-      ];
-      seaAreas = [
-        { id: 1, name: '东海区 A1', location: '浙江省舟山市', area: 120.5, created_at: '2026-01-01', updated_at: '2026-06-01' }
-      ];
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }

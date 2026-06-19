@@ -7,6 +7,7 @@
 
   let report: DiseaseReport | null = null;
   let loading = true;
+  let errorMsg: string | null = null;
   let treatmentModalOpen = false;
 
   let treatmentForm = {
@@ -47,23 +48,9 @@
     try {
       const res = await diseaseReportApi.getById(parseInt(id));
       report = res.data;
-    } catch (error) {
-      console.error('Failed to load report:', error);
-      report = {
-        id: parseInt(id),
-        cage: 1,
-        cage_code: 'C-001',
-        reporter: '张三',
-        report_time: '2026-06-18T10:30:00',
-        disease_type: 'bacterial',
-        severity: 'severe',
-        description: '发现鱼体表面有多处溃疡，食欲减退，部分鱼体发黑。约有30%的鱼出现症状。',
-        status: 'pending',
-        is_anomaly: true,
-        anomaly_score: 78.5,
-        created_at: '2026-06-18T10:30:00',
-        updated_at: '2026-06-18T10:30:00'
-      };
+    } catch (err) {
+      console.error('Failed to load report:', err);
+      errorMsg = '加载数据失败，请稍后重试';
     } finally {
       loading = false;
     }
