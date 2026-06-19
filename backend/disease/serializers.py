@@ -1,0 +1,28 @@
+from rest_framework import serializers
+from .models import DiseaseReport, MortalityReport
+from core.serializers import CageSerializer
+
+
+class DiseaseReportSerializer(serializers.ModelSerializer):
+    cage_code = serializers.CharField(source='cage.code', read_only=True)
+    cage_details = CageSerializer(source='cage', read_only=True)
+    disease_type_display = serializers.CharField(source='get_disease_type_display', read_only=True)
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = DiseaseReport
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'is_anomaly', 'anomaly_score')
+
+
+class MortalityReportSerializer(serializers.ModelSerializer):
+    cage_code = serializers.CharField(source='cage.code', read_only=True)
+    cage_details = CageSerializer(source='cage', read_only=True)
+    cause_display = serializers.CharField(source='get_cause_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = MortalityReport
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'is_anomaly', 'anomaly_score')
