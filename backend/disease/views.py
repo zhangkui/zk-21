@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
@@ -12,6 +13,148 @@ from .tasks import (
     run_all_anomaly_detections,
     get_high_risk_areas_statistics
 )
+
+
+class RecentReportsView(APIView):
+    def get(self, request):
+        try:
+            reports = []
+            limit = int(request.query_params.get('limit', 10))
+            
+            disease_reports = DiseaseReport.objects.all().order_by('-report_time')[:limit]
+            mortality_reports = MortalityReport.objects.all().order_by('-report_time')[:limit]
+            
+            for r in disease_reports:
+                reports.append({
+                    'id': r.id,
+                    'type': 'disease',
+                    'cage_code': r.cage.code if r.cage else '',
+                    'cage_id': r.cage.id if r.cage else None,
+                    'reporter': r.reporter,
+                    'report_time': r.report_time.isoformat(),
+                    'title': f'病害上报 - {r.get_disease_type_display()}',
+                    'severity': r.severity,
+                    'status': r.status,
+                    'is_anomaly': r.is_anomaly,
+                    'anomaly_score': r.anomaly_score,
+                })
+            
+            for r in mortality_reports:
+                reports.append({
+                    'id': r.id,
+                    'type': 'mortality',
+                    'cage_code': r.cage.code if r.cage else '',
+                    'cage_id': r.cage.id if r.cage else None,
+                    'reporter': r.reporter,
+                    'report_time': r.report_time.isoformat(),
+                    'title': f'死亡上报 - 死亡{r.mortality_count}尾',
+                    'mortality_count': r.mortality_count,
+                    'cause': r.cause,
+                    'status': r.status,
+                    'is_anomaly': r.is_anomaly,
+                    'anomaly_score': r.anomaly_score,
+                })
+            
+            reports.sort(key=lambda x: x['report_time'], reverse=True)
+            return Response(reports[:limit])
+        except Exception as e:
+            return Response([])
+
+
+class DiseaseTrendsView(APIView):
+    def get(self, request):
+        try:
+            trends = []
+            now = timezone.now()
+            
+            for i in range(6):
+                start_date = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                if i == 0:
+                    end_date = now
+                else:
+                    next_month = (now - timedelta(days=(i - 1) * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    end_date = next_month - timedelta(days=1)
+                
+                month_data = {
+                    'month': start_date.strftime('%Y-%m'),
+                    'bacterial': DiseaseReport.objects.filter(
+                        report_time__gte=start_date,
+                        report_time__lte=end_date,
+                        disease_type='bacterial'
+                    ).count(),
+                    'viral': DiseaseReport.objects.filter(
+                        report_time__gte=start_date,
+                        report_time__lte=end_date,
+                        disease_type='viral'
+                    ).count(),
+                    'parasitic': DiseaseReport.objects.filter(
+                        report_time__gte=start_date,
+                        report_time__lte=end_date,
+                        disease_type='parasitic'
+                    ).count(),
+                    'fungal': DiseaseReport.objects.filter(
+                        report_time__gte=start_date,
+                        report_time__lte=end_date,
+                        disease_type='fungal'
+                    ).count(),
+                    'other': DiseaseReport.objects.filter(
+                        report_time__gte=start_date,
+                        report_time__lte=end_date,
+                        disease_type__in=['nutritional', 'environmental', 'other']
+                    ).count(),
+                }
+                trends.append(month_data)
+            
+            trends.reverse()
+            return Response(trends)
+        except Exception as e:
+            return Response([])
+
+
+class MortalityStatsView(APIView):
+    def get(self, request):
+        try:
+            now = timezone.now()
+            thirty_days_ago = now - timedelta(days=30)
+            
+            total_reports = MortalityReport.objects.count()
+            total_mortality = sum(r.mortality_count for r in MortalityReport.objects.all())
+            
+            recent_reports = MortalityReport.objects.filter(report_time__gte=thirty_days_ago)
+            recent_mortality = sum(r.mortality_count for r in recent_reports)
+            
+            cause_stats = MortalityReport.objects.values('cause').annotate(
+                count=Count('id'),
+                total_mortality=Count('mortality_count')
+            ).order_by('-total_mortality')
+            
+            cause_data = []
+            for stat in cause_stats:
+                cause_display = dict(MortalityReport.CAUSE_CHOICES).get(stat['cause'], stat['cause'])
+                cause_data.append({
+                    'cause': stat['cause'],
+                    'cause_display': cause_display,
+                    'count': stat['count'],
+                    'total_mortality': stat['total_mortality'],
+                    'percentage': (stat['total_mortality'] / total_mortality * 100) if total_mortality > 0 else 0,
+                })
+            
+            data = {
+                'total_reports': total_reports,
+                'total_mortality': total_mortality,
+                'recent_30_days_reports': recent_reports.count(),
+                'recent_30_days_mortality': recent_mortality,
+                'cause_statistics': cause_data,
+            }
+            return Response(data)
+        except Exception as e:
+            return Response({
+                'total_reports': 0,
+                'total_mortality': 0,
+                'recent_30_days_reports': 0,
+                'recent_30_days_mortality': 0,
+                'cause_statistics': [],
+            })
 
 
 class DiseaseReportViewSet(viewsets.ModelViewSet):
