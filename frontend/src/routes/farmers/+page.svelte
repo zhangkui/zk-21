@@ -147,7 +147,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title={editingFarmer ? '编辑养殖户' : '新增养殖户'} size="lg">
+<Modal bind:open={modalOpen} title={editingFarmer ? '编辑养殖户' : '新增养殖户'} size="lg">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>

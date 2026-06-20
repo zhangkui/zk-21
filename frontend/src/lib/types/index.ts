@@ -120,7 +120,8 @@ export interface InspectionRoute {
   description?: string;
   cages: number[];
   cage_details?: Cage[];
-  creator?: string;
+  creator?: number | null;
+  creator_name?: string;
   created_at: string;
   updated_at: string;
 }

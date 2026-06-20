@@ -240,7 +240,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title={editingCage ? '编辑网箱' : '新增网箱'} size="lg">
+<Modal bind:open={modalOpen} title={editingCage ? '编辑网箱' : '新增网箱'} size="lg">
   <form id="cage-form" on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>

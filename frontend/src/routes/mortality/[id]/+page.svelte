@@ -194,7 +194,7 @@
   </div>
 {/if}
 
-<Modal open={treatmentModalOpen} title="处理异常" size="lg">
+<Modal bind:open={treatmentModalOpen} title="处理异常" size="lg">
   <form on:submit|preventDefault={handleTreatmentSubmit} class="space-y-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">处理状态 *</label>

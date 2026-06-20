@@ -29,7 +29,11 @@
       label: '包含网箱数',
       render: (val: number[]) => val?.length || 0
     },
-    { key: 'creator', label: '创建人' },
+    {
+      key: 'creator_name',
+      label: '创建人',
+      render: (val: string) => val || '-'
+    },
     {
       key: 'created_at',
       label: '创建时间',
@@ -155,7 +159,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title={editingRoute ? '编辑路线' : '新增路线'} size="xl">
+<Modal bind:open={modalOpen} title={editingRoute ? '编辑路线' : '新增路线'} size="xl">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">路线名称 *</label>

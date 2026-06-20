@@ -17,8 +17,8 @@ from core.serializers import CageSerializer
 class InspectionRouteViewSet(viewsets.ModelViewSet):
     queryset = InspectionRoute.objects.all()
     serializer_class = InspectionRouteSerializer
-    filterset_fields = ['name', 'creator']
-    search_fields = ['name', 'description', 'creator']
+    filterset_fields = ['name']
+    search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'name']
 
     def get_queryset(self):
@@ -28,6 +28,9 @@ class InspectionRouteViewSet(viewsets.ModelViewSet):
             record_count=Count('records', distinct=True)
         )
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(creator=self.request.user)
 
     @action(detail=True, methods=['get'])
     def cages(self, request, pk=None):

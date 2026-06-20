@@ -155,7 +155,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title={editingArea ? '编辑海区' : '新增海区'} size="2xl">
+<Modal bind:open={modalOpen} title={editingArea ? '编辑海区' : '新增海区'} size="2xl">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>

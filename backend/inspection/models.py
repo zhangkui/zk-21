@@ -7,7 +7,13 @@ class InspectionRoute(models.Model):
     name = models.CharField(max_length=200, verbose_name='路线名称')
     description = models.TextField(null=True, blank=True, verbose_name='描述')
     cages = models.ManyToManyField(Cage, through='InspectionRouteCage', related_name='routes', verbose_name='包含的网箱')
-    creator = models.CharField(max_length=100, null=True, blank=True, verbose_name='创建人')
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='inspection_routes',
+        verbose_name='创建人'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 

@@ -258,7 +258,7 @@
     />
   </div>
 
-  <Modal open={modalOpen} title={editingUser ? '编辑账号' : '新增账号'} size="lg">
+  <Modal bind:open={modalOpen} title={editingUser ? '编辑账号' : '新增账号'} size="lg">
     <form on:submit|preventDefault={handleSubmit} class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>

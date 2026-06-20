@@ -17,11 +17,18 @@ class InspectionRouteSerializer(serializers.ModelSerializer):
     record_count = serializers.IntegerField(read_only=True)
     route_cages = InspectionRouteCageSerializer(source='inspectionroutecage_set', many=True, read_only=True)
     cage_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+    creator_name = serializers.SerializerMethodField()
 
     class Meta:
         model = InspectionRoute
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'creator')
+
+    def get_creator_name(self, obj):
+        if obj.creator:
+            full = obj.creator.get_full_name()
+            return full if full else obj.creator.username
+        return None
 
     def create(self, validated_data):
         cage_ids = validated_data.pop('cage_ids', [])

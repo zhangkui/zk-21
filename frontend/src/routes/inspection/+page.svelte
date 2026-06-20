@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { inspectionRecordApi, inspectionRouteApi, cageApi, userApi } from '$lib/stores/api';
+  import { inspectionRecordApi, inspectionRouteApi, cageApi, userApi, inspectionPointApi } from '$lib/stores/api';
   import { auth } from '$lib/stores/auth';
   import type { InspectionRecord, InspectionRoute, Cage, InspectionPoint, User } from '$lib/types';
 
@@ -199,7 +199,8 @@
       currentPoint.cage = currentRouteCages[currentCageIndex];
       currentPoint.check_time = new Date().toISOString();
       currentPoint.has_abnormality = !!(currentPoint.abnormal_condition && currentPoint.abnormal_condition.length > 0);
-      console.log('Saving inspection point:', currentPoint);
+      
+      await inspectionPointApi.create(currentPoint);
       
       if (currentCageIndex >= currentRouteCages.length - 1) {
         if (selectedRecord) {
@@ -256,7 +257,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title="新增巡检记录" size="lg">
+<Modal bind:open={modalOpen} title="新增巡检记录" size="lg">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>
@@ -310,7 +311,7 @@
   </div>
 </Modal>
 
-<Modal open={executionModalOpen} title="执行巡检" size="xl">
+<Modal bind:open={executionModalOpen} title="执行巡检" size="xl">
   {#if selectedRecord && currentRoute && currentCage}
     <div class="space-y-6">
       <div class="flex items-center justify-between">

@@ -177,7 +177,7 @@
   {/if}
 </div>
 
-<Modal open={modalOpen} title={editingRole ? '编辑角色' : '新增角色'} size="md">
+<Modal bind:open={modalOpen} title={editingRole ? '编辑角色' : '新增角色'} size="md">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">角色名称 *</label>

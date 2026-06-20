@@ -227,7 +227,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title="新增病害上报" size="lg">
+<Modal bind:open={modalOpen} title="新增病害上报" size="lg">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>
