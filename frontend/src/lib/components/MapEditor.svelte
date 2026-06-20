@@ -7,7 +7,7 @@
   export let height = '400px';
 
   const dispatch = createEventDispatcher<{
-    change: { points: [number, number][]; lat_min: number; lat_max: number; lng_min: number; lng_max: number };
+    change: { points: [number, number][] };
   }>();
 
   let mapContainer: HTMLDivElement;
@@ -128,25 +128,9 @@
   }
 
   function emitChange() {
-    if (tempPoints.length >= 3) {
-      const lats = tempPoints.map((p) => p[0]);
-      const lngs = tempPoints.map((p) => p[1]);
-      dispatch('change', {
-        points: [...tempPoints],
-        lat_min: Math.min(...lats),
-        lat_max: Math.max(...lats),
-        lng_min: Math.min(...lngs),
-        lng_max: Math.max(...lngs)
-      });
-    } else {
-      dispatch('change', {
-        points: [...tempPoints],
-        lat_min: undefined as any,
-        lat_max: undefined as any,
-        lng_min: undefined as any,
-        lng_max: undefined as any
-      });
-    }
+    dispatch('change', {
+      points: [...tempPoints]
+    });
   }
 
   async function handleSearch() {

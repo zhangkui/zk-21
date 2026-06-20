@@ -10,11 +10,9 @@ export interface SeaArea {
   location: string;
   area: number;
   depth?: number;
-  lat_min?: number;
-  lat_max?: number;
-  lng_min?: number;
-  lng_max?: number;
   boundary?: [number, number][];
+  center_lat?: number;
+  center_lng?: number;
   description?: string;
   created_at: string;
   updated_at: string;

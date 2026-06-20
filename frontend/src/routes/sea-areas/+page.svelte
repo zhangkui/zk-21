@@ -17,10 +17,6 @@
     location: '',
     area: 0,
     depth: undefined,
-    lat_min: undefined,
-    lat_max: undefined,
-    lng_min: undefined,
-    lng_max: undefined,
     boundary: undefined,
     description: ''
   };
@@ -75,10 +71,6 @@
         location: '',
         area: 0,
         depth: undefined,
-        lat_min: undefined,
-        lat_max: undefined,
-        lng_min: undefined,
-        lng_max: undefined,
         boundary: undefined,
         description: ''
       };
@@ -87,14 +79,10 @@
   }
 
   function handleMapChange(e: CustomEvent) {
-    const { points, lat_min, lat_max, lng_min, lng_max } = e.detail;
+    const { points } = e.detail;
     formData = {
       ...formData,
-      boundary: points.length >= 3 ? points : undefined,
-      lat_min,
-      lat_max,
-      lng_min,
-      lng_max
+      boundary: points.length >= 3 ? points : undefined
     };
   }
 

@@ -4,12 +4,8 @@ from django.db import models
 class SeaArea(models.Model):
     name = models.CharField(max_length=200, verbose_name='海区名称')
     location = models.CharField(max_length=500, verbose_name='位置')
-    area = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='面积(公顷)')
+    area = models.DecimalField(max_digits=15, decimal_places=2, verbose_name='面积(公顷)')
     depth = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='平均水深(米)')
-    lat_min = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='纬度最小值')
-    lat_max = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='纬度最大值')
-    lng_min = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='经度最小值')
-    lng_max = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='经度最大值')
     boundary = models.JSONField(null=True, blank=True, verbose_name='边界坐标(多边形点集合)')
     description = models.TextField(null=True, blank=True, verbose_name='描述')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
@@ -22,6 +18,20 @@ class SeaArea(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def center_lat(self):
+        if self.boundary and len(self.boundary) >= 3:
+            lats = [p[0] for p in self.boundary]
+            return (min(lats) + max(lats)) / 2
+        return None
+
+    @property
+    def center_lng(self):
+        if self.boundary and len(self.boundary) >= 3:
+            lngs = [p[1] for p in self.boundary]
+            return (min(lngs) + max(lngs)) / 2
+        return None
 
 
 class Farmer(models.Model):

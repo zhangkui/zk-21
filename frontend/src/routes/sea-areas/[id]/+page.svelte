@@ -52,14 +52,10 @@
   let center: [number, number] = [30.0, 120.0];
 
   $: if (seaArea) {
-    polygons = seaArea.boundary && seaArea.boundary.length >= 3 ? [seaArea.boundary as [number, number][]] : [];
-  }
-
-  $: if (seaArea) {
-    mapMarkers = [];
-    if (seaArea.boundary && seaArea.boundary.length >= 3) {
-      const lats = seaArea.boundary.map((p: [number, number]) => p[0]);
-      const lngs = seaArea.boundary.map((p: [number, number]) => p[1]);
+    if (seaArea.boundary && Array.isArray(seaArea.boundary) && seaArea.boundary.length >= 3) {
+      polygons = [seaArea.boundary as [number, number][]];
+      const lats = (seaArea.boundary as [number, number][]).map((p) => p[0]);
+      const lngs = (seaArea.boundary as [number, number][]).map((p) => p[1]);
       const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
       const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
       center = [centerLat, centerLng];
@@ -71,19 +67,20 @@
           riskLevel: 'low'
         }
       ];
-    } else if (seaArea.lat_min && seaArea.lng_min) {
-      center = [
-        (seaArea.lat_min + (seaArea.lat_max || seaArea.lat_min)) / 2,
-        (seaArea.lng_min + (seaArea.lng_max || seaArea.lng_min)) / 2
-      ];
+    } else if (seaArea.center_lat && seaArea.center_lng) {
+      polygons = [];
+      center = [seaArea.center_lat, seaArea.center_lng];
       mapMarkers = [
         {
-          lat: center[0],
-          lng: center[1],
-          popup: `<div class="p-2"><h4 class="font-semibold">${seaArea.name}</h4><p class="text-sm">面积: ${seaArea.area} 公顷</p></div>`,
+          lat: seaArea.center_lat,
+          lng: seaArea.center_lng,
+          popup: `<div class="p-2"><h4 class="font-semibold">${seaArea.name}</h4><p class="text-sm">面积: ${seaArea.area} 公顷</p><p class="text-sm text-gray-500">（暂未绘制区域范围）</p></div>`,
           riskLevel: 'low'
         }
       ];
+    } else {
+      polygons = [];
+      mapMarkers = [];
     }
   }
 

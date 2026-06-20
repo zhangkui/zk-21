@@ -35,6 +35,8 @@ class SeaAreaSerializer(serializers.ModelSerializer):
     farmer_count = serializers.IntegerField(read_only=True)
     cages = CageWithFarmerSerializer(many=True, read_only=True)
     farmers = FarmerSimpleSerializer(many=True, read_only=True)
+    center_lat = serializers.FloatField(read_only=True)
+    center_lng = serializers.FloatField(read_only=True)
 
     class Meta:
         model = SeaArea
