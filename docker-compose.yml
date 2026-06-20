@@ -169,7 +169,9 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_API_BASE_URL=
+      - VITE_API_INTERNAL_URL=http://backend:8000
+      - VITE_API_PROXY_TARGET=http://backend:8000
     depends_on:
       - backend
     networks:

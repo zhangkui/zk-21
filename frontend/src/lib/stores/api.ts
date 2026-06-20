@@ -18,9 +18,14 @@ import type {
   LoginResponse
 } from '$lib/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
 const isBrowser = typeof window !== 'undefined';
+
+let API_BASE_URL = '';
+if (isBrowser) {
+  API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+} else {
+  API_BASE_URL = import.meta.env.VITE_API_BASE_URL || process.env.VITE_API_INTERNAL_URL || 'http://backend:8000';
+}
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
