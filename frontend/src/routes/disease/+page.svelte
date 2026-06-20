@@ -15,6 +15,12 @@
   let statusFilter = '';
 
   $: isAdmin = $auth.user?.is_admin || false;
+  $: userRoleCode = $auth.user?.role_code || null;
+  $: isFarmer = userRoleCode === 'farmer';
+
+  $: availableCages = isFarmer
+    ? cages.filter((c) => c.farmers?.some((f) => f.id === $auth.user?.farmer_id) || c.farmer_ids?.includes($auth.user?.farmer_id || 0))
+    : cages;
 
   let formData: Partial<DiseaseReport> = {
     cage: undefined,
@@ -238,7 +244,7 @@
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
         >
           <option value={undefined}>请选择网箱</option>
-          {#each cages as cage}
+          {#each availableCages as cage}
             <option value={cage.id}>{cage.code} - {cage.location}</option>
           {/each}
         </select>

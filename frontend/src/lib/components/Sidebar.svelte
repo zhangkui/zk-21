@@ -2,7 +2,14 @@
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth';
 
-  const menuItems = [
+  const ROLE_MENU_PERMISSIONS: Record<string, string[]> = {
+    admin: ['/', '/sea-areas', '/cages', '/farmers', '/inspection', '/inspection/routes', '/disease', '/mortality', '/analytics'],
+    inspector: ['/', '/cages', '/inspection', '/inspection/routes', '/disease', '/mortality'],
+    technician: ['/', '/cages', '/disease', '/mortality', '/analytics'],
+    farmer: ['/', '/cages', '/disease', '/mortality', '/inspection']
+  };
+
+  const allMenuItems = [
     { path: '/', label: '仪表板', icon: '📊' },
     { path: '/sea-areas', label: '海区管理', icon: '🌊' },
     { path: '/cages', label: '网箱档案', icon: '🗑️' },
@@ -19,8 +26,29 @@
     { path: '/accounts/roles', label: '角色管理', icon: '🔑' }
   ];
 
+  function isMenuActive(currentPath: string, menuPath: string): boolean {
+    if (menuPath === '/') {
+      return currentPath === '/';
+    }
+    if (menuPath === '/inspection') {
+      return currentPath === '/inspection' || currentPath.startsWith('/inspection/') && !currentPath.startsWith('/inspection/routes');
+    }
+    if (menuPath === '/inspection/routes') {
+      return currentPath === '/inspection/routes' || currentPath.startsWith('/inspection/routes/');
+    }
+    return currentPath === menuPath || currentPath.startsWith(menuPath + '/');
+  }
+
+  function filterMenuByRole(roleCode: string | null | undefined, isAdminFlag: boolean) {
+    if (isAdminFlag) return allMenuItems;
+    const allowed = ROLE_MENU_PERMISSIONS[roleCode || ''] || [];
+    return allMenuItems.filter((item) => allowed.includes(item.path));
+  }
+
   $: currentPath = $page.url.pathname;
   $: isAdmin = $auth.user?.is_admin || $auth.user?.is_superuser || false;
+  $: userRoleCode = $auth.user?.role_code || null;
+  $: menuItems = filterMenuByRole(userRoleCode, isAdmin);
 </script>
 
 <aside class="w-64 bg-slate-800 text-white h-screen flex flex-col fixed left-0 top-0 z-30">
@@ -35,8 +63,7 @@
     {#each menuItems as item}
       <a
         href={item.path}
-        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {currentPath === item.path ||
-          (item.path !== '/' && currentPath.startsWith(item.path))
+        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {isMenuActive(currentPath, item.path)
           ? 'bg-primary-600 text-white'
           : 'text-slate-300 hover:bg-slate-700 hover:text-white'}"
       >
@@ -50,7 +77,7 @@
       {#each adminMenuItems as item}
         <a
           href={item.path}
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {currentPath.startsWith(item.path)
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {isMenuActive(currentPath, item.path)
             ? 'bg-primary-600 text-white'
             : 'text-slate-300 hover:bg-slate-700 hover:text-white'}"
         >

@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -10,29 +10,7 @@ from .models import Role
 from .serializers import (
     RoleSerializer, UserSerializer, UserCreateSerializer, UserUpdateSerializer
 )
-
-
-class IsAdminUser(BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-        profile = getattr(request.user, 'profile', None)
-        if profile and profile.role and profile.role.code == 'admin':
-            return True
-        return False
-
-
-def is_admin_user(user):
-    if not user or not user.is_authenticated:
-        return False
-    if user.is_superuser:
-        return True
-    profile = getattr(user, 'profile', None)
-    if profile and profile.role and profile.role.code == 'admin':
-        return True
-    return False
+from .permissions import IsAdminUser, is_admin_user
 
 
 class LoginView(APIView):

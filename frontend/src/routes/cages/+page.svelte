@@ -3,6 +3,7 @@
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import { cageApi, seaAreaApi, farmerApi } from '$lib/stores/api';
+  import { auth } from '$lib/stores/auth';
   import type { Cage, SeaArea, Farmer } from '$lib/types';
 
   let cages: Cage[] = [];
@@ -14,6 +15,8 @@
   let editingCage: Partial<Cage> | null = null;
   let statusFilter = '';
   let farmerFilter = '';
+
+  $: isAdmin = $auth.user?.is_admin || false;
 
   let formData: Partial<Cage> & { farmer_ids?: number[] } = {
     code: '',
@@ -41,7 +44,7 @@
     abnormal: { label: '异常', class: 'bg-red-100 text-red-800' }
   };
 
-  const columns = [
+  $: columns = [
     { key: 'id', label: 'ID' },
     { key: 'code', label: '网箱编号' },
     { key: 'sea_area_name', label: '所属海区' },
@@ -71,14 +74,14 @@
         return `<span class="px-2 py-1 text-xs font-medium rounded-full ${s.class}">${s.label}</span>`;
       }
     },
-    {
+    ...(isAdmin ? [{
       key: 'actions',
       label: '操作',
       render: () =>
         '<button class="text-primary-600 hover:text-primary-800 mr-3">查看</button>' +
         '<button class="text-yellow-600 hover:text-yellow-800 mr-3">编辑</button>' +
         '<button class="text-red-600 hover:text-red-800">删除</button>'
-    }
+    }] : [])
   ];
 
   $: filteredCages = cages.filter((c) => {
@@ -218,15 +221,17 @@
           <option value={opt.value}>{opt.label}</option>
         {/each}
       </select>
-      <button
-        on:click={() => openModal()}
-        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        新增网箱
-      </button>
+      {#if isAdmin}
+        <button
+          on:click={() => openModal()}
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新增网箱
+        </button>
+      {/if}
     </div>
   </div>
 

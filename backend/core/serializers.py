@@ -47,11 +47,40 @@ class SeaAreaSerializer(serializers.ModelSerializer):
 class FarmerSerializer(serializers.ModelSerializer):
     sea_area_name = serializers.CharField(source='sea_area.name', read_only=True)
     cage_count = serializers.IntegerField(read_only=True)
+    user_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    username = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
         model = Farmer
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+    def create(self, validated_data):
+        user_id = validated_data.pop('user_id', None)
+        farmer = super().create(validated_data)
+        if user_id:
+            try:
+                from django.contrib.auth.models import User
+                farmer.user = User.objects.get(pk=user_id)
+                farmer.save()
+            except Exception:
+                pass
+        return farmer
+
+    def update(self, instance, validated_data):
+        user_id = validated_data.pop('user_id', None)
+        farmer = super().update(instance, validated_data)
+        if user_id is not None:
+            if user_id:
+                try:
+                    from django.contrib.auth.models import User
+                    farmer.user = User.objects.get(pk=user_id)
+                except Exception:
+                    farmer.user = None
+            else:
+                farmer.user = None
+            farmer.save()
+        return farmer
 
 
 class CageSerializer(serializers.ModelSerializer):

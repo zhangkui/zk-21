@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class SeaArea(models.Model):
@@ -39,6 +40,7 @@ class Farmer(models.Model):
     phone = models.CharField(max_length=20, verbose_name='联系电话')
     id_card = models.CharField(max_length=18, unique=True, verbose_name='身份证号')
     sea_area = models.ForeignKey(SeaArea, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='所属海区', related_name='farmers')
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='关联用户', related_name='farmer_profile')
     scale = models.CharField(max_length=100, null=True, blank=True, verbose_name='养殖规模')
     registration_date = models.DateField(null=True, blank=True, verbose_name='注册日期')
     contact_info = models.TextField(null=True, blank=True, verbose_name='其他联系方式')

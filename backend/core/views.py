@@ -2,27 +2,61 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q, Case, When, Value, CharField
 from django.utils import timezone
 from datetime import timedelta
 from .models import SeaArea, Farmer, Cage, CageFarmer
 from .serializers import SeaAreaSerializer, FarmerSerializer, CageSerializer, CageFarmerSerializer
+from accounts.permissions import (
+    IsAdminUser,
+    role_permission,
+    is_admin,
+    is_farmer,
+    get_user_farmer,
+    get_farmer_cage_ids,
+    get_role_code,
+)
 
 
 class DashboardStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
-        
+
+        user = request.user
+        if is_farmer(user):
+            farmer = get_user_farmer(user)
+            if farmer:
+                cage_ids = list(Cage.objects.filter(cage_farmers__farmer=farmer).values_list('id', flat=True))
+                cages = Cage.objects.filter(id__in=cage_ids)
+                pending_disease = DiseaseReport.objects.filter(cage_id__in=cage_ids, status='pending').count()
+                pending_mortality = MortalityReport.objects.filter(cage_id__in=cage_ids, status='pending').count()
+                pending_reports = pending_disease + pending_mortality
+                abnormal_cages = cages.filter(status='abnormal').count()
+                data = {
+                    'sea_areas': SeaArea.objects.filter(cages__in=cages).distinct().count(),
+                    'cages': cages.count(),
+                    'farmers': 1,
+                    'pending_reports': pending_reports,
+                    'pending_disease': pending_disease,
+                    'pending_mortality': pending_mortality,
+                    'abnormal_cages': abnormal_cages,
+                    'high_risk_areas': 0,
+                }
+                return Response(data)
+
         sea_areas = SeaArea.objects.count()
         cages = Cage.objects.count()
         farmers = Farmer.objects.count()
-        
+
         pending_disease = DiseaseReport.objects.filter(status='pending').count()
         pending_mortality = MortalityReport.objects.filter(status='pending').count()
         pending_reports = pending_disease + pending_mortality
-        
+
         abnormal_cages = Cage.objects.filter(status='abnormal').count()
-        
+
         high_risk_areas = 0
         for area in SeaArea.objects.all():
             area_cages = area.cages.all()
@@ -33,7 +67,7 @@ class DashboardStatsView(APIView):
             ).distinct().count()
             if abnormal >= 3:
                 high_risk_areas += 1
-        
+
         data = {
             'sea_areas': sea_areas,
             'cages': cages,
@@ -48,11 +82,17 @@ class DashboardStatsView(APIView):
 
 
 class MonthlyTrendsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
         trends = []
         now = timezone.now()
-        
+        user = request.user
+        cage_ids = None
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+
         for i in range(5, -1, -1):
             month_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             if i == 0:
@@ -60,72 +100,73 @@ class MonthlyTrendsView(APIView):
             else:
                 next_month = (now - timedelta(days=(i - 1) * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 month_end = next_month - timedelta(days=1)
-            
-            disease_count = DiseaseReport.objects.filter(
+
+            disease_qs = DiseaseReport.objects.filter(
                 report_time__gte=month_start,
                 report_time__lte=month_end
-            ).count()
-            
-            mortality_count = MortalityReport.objects.filter(
-                report_time__gte=month_start,
-                report_time__lte=month_end
-            ).count()
-            
-            total_mortality = sum(
-                r.mortality_count for r in MortalityReport.objects.filter(
-                    report_time__gte=month_start,
-                    report_time__lte=month_end
-                )
             )
-            
+            mortality_qs = MortalityReport.objects.filter(
+                report_time__gte=month_start,
+                report_time__lte=month_end
+            )
+            if cage_ids is not None:
+                disease_qs = disease_qs.filter(cage_id__in=cage_ids)
+                mortality_qs = mortality_qs.filter(cage_id__in=cage_ids)
+
+            disease_count = disease_qs.count()
+            mortality_count = mortality_qs.count()
+            total_mortality = sum(r.mortality_count for r in mortality_qs)
+
             trends.append({
                 'month': month_start.strftime('%Y-%m'),
                 'disease_reports': disease_count,
                 'mortality_reports': mortality_count,
                 'total_mortality': total_mortality,
             })
-        
+
         return Response(trends)
 
 
 class HeatmapDataView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
         data = []
         seven_days_ago = timezone.now() - timedelta(days=7)
-        
+
         for area in SeaArea.objects.all():
             cages = area.cages.all()
-            cage_ids = cages.values_list('id', flat=True)
-            
+            cage_ids = list(cages.values_list('id', flat=True))
+
             disease_reports = DiseaseReport.objects.filter(
                 cage_id__in=cage_ids,
                 report_time__gte=seven_days_ago
             ).count()
-            
+
             mortality_reports = MortalityReport.objects.filter(
                 cage_id__in=cage_ids,
                 report_time__gte=seven_days_ago
             ).count()
-            
+
             abnormal_cages = cages.filter(
                 Q(disease_reports__status='pending') |
                 Q(mortality_reports__status='pending') |
                 Q(status='abnormal')
             ).distinct().count()
-            
+
             total_cages = cages.count()
             risk_score = 0
             if total_cages > 0:
                 risk_score = (abnormal_cages / total_cages) * 50 + (disease_reports + mortality_reports) * 2
                 risk_score = min(risk_score, 100)
-            
+
             risk_level = 'low'
             if risk_score >= 50:
                 risk_level = 'high'
             elif risk_score >= 20:
                 risk_level = 'medium'
-            
+
             data.append({
                 'sea_area_id': area.id,
                 'sea_area_name': area.name,
@@ -139,42 +180,44 @@ class HeatmapDataView(APIView):
                 'risk_score': risk_score,
                 'risk_level': risk_level,
             })
-        
+
         return Response(data)
 
 
 class FarmerResponsibilityView(APIView):
+    permission_classes = [role_permission('admin', 'technician')]
+
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
         data = []
-        
+
         for farmer in Farmer.objects.all():
             cages = Cage.objects.filter(cage_farmers__farmer=farmer)
             cage_ids = cages.values_list('id', flat=True)
-            
+
             disease_reports = DiseaseReport.objects.filter(cage_id__in=cage_ids).count()
             mortality_reports = MortalityReport.objects.filter(cage_id__in=cage_ids).count()
-            
+
             pending_disease = DiseaseReport.objects.filter(
                 cage_id__in=cage_ids, status='pending'
             ).count()
-            
+
             pending_mortality = MortalityReport.objects.filter(
                 cage_id__in=cage_ids, status='pending'
             ).count()
-            
+
             anomaly_disease = DiseaseReport.objects.filter(
                 cage_id__in=cage_ids, is_anomaly=True
             ).count()
-            
+
             anomaly_mortality = MortalityReport.objects.filter(
                 cage_id__in=cage_ids, is_anomaly=True
             ).count()
-            
+
             total_mortality = sum(
                 r.mortality_count for r in MortalityReport.objects.filter(cage_id__in=cage_ids)
             )
-            
+
             data.append({
                 'farmer_id': farmer.id,
                 'farmer_name': farmer.name,
@@ -190,7 +233,7 @@ class FarmerResponsibilityView(APIView):
                 'total_mortality': total_mortality,
                 'responsibility_score': pending_disease + pending_mortality + anomaly_disease + anomaly_mortality,
             })
-        
+
         data.sort(key=lambda x: x['responsibility_score'], reverse=True)
         return Response(data)
 
@@ -198,12 +241,22 @@ class FarmerResponsibilityView(APIView):
 class SeaAreaViewSet(viewsets.ModelViewSet):
     queryset = SeaArea.objects.all()
     serializer_class = SeaAreaSerializer
+    permission_classes = [role_permission('admin')]
     filterset_fields = ['name', 'location']
     search_fields = ['name', 'location', 'description']
     ordering_fields = ['created_at', 'name', 'area']
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            queryset = queryset.filter(cages__id__in=cage_ids).distinct()
         queryset = queryset.annotate(
             cage_count=Count('cages', distinct=True),
             farmer_count=Count('farmers', distinct=True)
@@ -247,9 +300,17 @@ class SeaAreaViewSet(viewsets.ModelViewSet):
     def statistics(self, request, pk=None):
         area = self.get_object()
         cages = area.cages.all()
+        user = request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            cages = cages.filter(id__in=cage_ids)
         total_capacity = sum(c.capacity for c in cages)
         status_stats = cages.values('status').annotate(count=Count('id'))
         farmers = area.farmers.all()
+        if is_farmer(user):
+            farmer = get_user_farmer(user)
+            if farmer:
+                farmers = Farmer.objects.filter(pk=farmer.pk)
         data = {
             'id': area.id,
             'name': area.name,
@@ -264,12 +325,23 @@ class SeaAreaViewSet(viewsets.ModelViewSet):
 class FarmerViewSet(viewsets.ModelViewSet):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
+    permission_classes = [role_permission('admin')]
     filterset_fields = ['name', 'phone', 'sea_area']
     search_fields = ['name', 'phone', 'id_card']
     ordering_fields = ['created_at', 'name', 'registration_date']
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            farmer = get_user_farmer(user)
+            if farmer:
+                queryset = queryset.filter(pk=farmer.pk)
         queryset = queryset.annotate(
             cage_count=Count('cage_farmers', distinct=True)
         )
@@ -286,15 +358,27 @@ class FarmerViewSet(viewsets.ModelViewSet):
 class CageViewSet(viewsets.ModelViewSet):
     queryset = Cage.objects.all()
     serializer_class = CageSerializer
+    permission_classes = [role_permission('admin')]
     filterset_fields = ['code', 'sea_area', 'status', 'species']
     search_fields = ['code', 'location', 'species']
     ordering_fields = ['created_at', 'code', 'capacity', 'stocking_date']
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [role_permission('admin')()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
         farmer_id = self.request.query_params.get('farmer')
         if farmer_id:
             queryset = queryset.filter(cage_farmers__farmer_id=farmer_id)
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            queryset = queryset.filter(id__in=cage_ids)
         queryset = queryset.annotate(
             _abnormal_report_count=Count(
                 'disease_reports',
@@ -357,9 +441,22 @@ class CageViewSet(viewsets.ModelViewSet):
 class CageFarmerViewSet(viewsets.ModelViewSet):
     queryset = CageFarmer.objects.all()
     serializer_class = CageFarmerSerializer
+    permission_classes = [role_permission('admin')]
     filterset_fields = ['cage', 'farmer']
     search_fields = ['cage__code', 'farmer__name']
     ordering_fields = ['created_at', 'start_date', 'end_date']
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return super().get_permissions()
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            farmer = get_user_farmer(user)
+            if farmer:
+                queryset = queryset.filter(farmer=farmer)
+        return queryset
 

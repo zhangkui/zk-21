@@ -37,6 +37,7 @@ class UserSerializer(serializers.ModelSerializer):
     role_name = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
     is_admin = serializers.SerializerMethodField()
+    farmer_id = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -44,7 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'is_active', 'is_staff',
             'role', 'role_id', 'role_code', 'role_name',
             'phone', 'profile_phone', 'display_name', 'is_admin',
-            'date_joined'
+            'date_joined', 'farmer_id'
         )
         read_only_fields = ('date_joined',)
 
@@ -77,6 +78,16 @@ class UserSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'profile') and obj.profile.role and obj.profile.role.code == 'admin':
             return True
         return False
+
+    def get_farmer_id(self, obj):
+        farmer = getattr(obj, 'farmer_profile', None)
+        if farmer:
+            return farmer.id
+        try:
+            from core.models import Farmer
+            return Farmer.objects.get(user=obj).id
+        except Exception:
+            return None
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

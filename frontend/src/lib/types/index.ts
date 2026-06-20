@@ -219,6 +219,7 @@ export interface User {
   email: string;
   is_active?: boolean;
   is_staff?: boolean;
+  is_superuser?: boolean;
   role?: UserRoleInfo | null;
   role_id?: number | null;
   role_code?: string;
@@ -227,6 +228,7 @@ export interface User {
   profile_phone?: string;
   display_name?: string;
   is_admin?: boolean;
+  farmer_id?: number | null;
   date_joined?: string;
   token?: string;
 }

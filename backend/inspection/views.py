@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
@@ -12,17 +13,35 @@ from .serializers import (
     InspectionPointSerializer
 )
 from core.serializers import CageSerializer
+from accounts.permissions import (
+    role_permission,
+    is_admin,
+    is_farmer,
+    is_inspector,
+    get_role_code,
+    get_farmer_cage_ids,
+)
 
 
 class InspectionRouteViewSet(viewsets.ModelViewSet):
     queryset = InspectionRoute.objects.all()
     serializer_class = InspectionRouteSerializer
+    permission_classes = [role_permission('admin', 'inspector')]
     filterset_fields = ['name']
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'name']
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            queryset = queryset.filter(cages__id__in=cage_ids).distinct()
         queryset = queryset.annotate(
             cage_count=Count('cages', distinct=True),
             record_count=Count('records', distinct=True)
@@ -36,6 +55,10 @@ class InspectionRouteViewSet(viewsets.ModelViewSet):
     def cages(self, request, pk=None):
         route = self.get_object()
         cages = route.cages.all()
+        user = request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            cages = cages.filter(id__in=cage_ids)
         serializer = CageSerializer(cages, many=True)
         return Response(serializer.data)
 
@@ -43,6 +66,10 @@ class InspectionRouteViewSet(viewsets.ModelViewSet):
     def records(self, request, pk=None):
         route = self.get_object()
         records = route.records.all()
+        user = request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            records = records.filter(points__cage_id__in=cage_ids).distinct()
         serializer = InspectionRecordSerializer(records, many=True)
         return Response(serializer.data)
 
@@ -60,6 +87,7 @@ class InspectionRouteViewSet(viewsets.ModelViewSet):
 
 class InspectionRecordViewSet(viewsets.ModelViewSet):
     queryset = InspectionRecord.objects.all()
+    permission_classes = [role_permission('admin', 'inspector', 'farmer')]
     filterset_fields = ['route', 'inspector', 'status']
     search_fields = ['route__name', 'remarks']
     ordering_fields = ['created_at', 'start_time', 'end_time']
@@ -68,6 +96,13 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return InspectionRecordDetailSerializer
         return InspectionRecordSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        if self.action in ('create', 'update', 'partial_update', 'start', 'complete', 'cancel'):
+            return [role_permission('admin', 'inspector')()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         inspector = serializer.validated_data.get('inspector')
@@ -89,6 +124,10 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            queryset = queryset.filter(points__cage_id__in=cage_ids).distinct()
         queryset = queryset.annotate(
             point_count=Count('points', distinct=True),
             abnormal_count=Count(
@@ -102,6 +141,10 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         record = self.get_object()
+        user = request.user
+        if is_farmer(user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('您无权执行此操作')
         if record.status == 'pending':
             record.status = 'in_progress'
             record.start_time = timezone.now()
@@ -116,6 +159,10 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         record = self.get_object()
+        user = request.user
+        if is_farmer(user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('您无权执行此操作')
         if record.status == 'in_progress':
             record.status = 'completed'
             record.end_time = timezone.now()
@@ -130,6 +177,10 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         record = self.get_object()
+        user = request.user
+        if is_farmer(user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('您无权执行此操作')
         if record.status in ['pending', 'in_progress']:
             record.status = 'cancelled'
             record.save()
@@ -167,9 +218,25 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
 class InspectionPointViewSet(viewsets.ModelViewSet):
     queryset = InspectionPoint.objects.all()
     serializer_class = InspectionPointSerializer
+    permission_classes = [role_permission('admin', 'inspector', 'farmer')]
     filterset_fields = ['record', 'cage', 'water_quality', 'has_abnormality']
     search_fields = ['cage__code', 'abnormal_condition']
     ordering_fields = ['check_time', 'created_at', 'water_temperature', 'ph_value']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [role_permission('admin', 'inspector')()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if is_farmer(user):
+            cage_ids = get_farmer_cage_ids(user)
+            queryset = queryset.filter(cage_id__in=cage_ids)
+        return queryset
 
     @action(detail=False, methods=['get'])
     def abnormal_points(self, request):
