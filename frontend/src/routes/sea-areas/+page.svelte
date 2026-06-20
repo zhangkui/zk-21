@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import MapEditor from '$lib/components/MapEditor.svelte';
   import { seaAreaApi } from '$lib/stores/api';
   import type { SeaArea } from '$lib/types';
 
@@ -20,6 +21,7 @@
     lat_max: undefined,
     lng_min: undefined,
     lng_max: undefined,
+    boundary: undefined,
     description: ''
   };
 
@@ -32,12 +34,12 @@
     {
       key: 'cages',
       label: '网箱数量',
-      render: (_: any, row: SeaArea) => row.cages?.length || 0
+      render: (_: any, row: SeaArea) => row.cages?.length || row.cage_count || 0
     },
     {
       key: 'farmers',
       label: '养殖户数量',
-      render: (_: any, row: SeaArea) => row.farmers?.length || 0
+      render: (_: any, row: SeaArea) => row.farmers?.length || row.farmer_count || 0
     },
     {
       key: 'actions',
@@ -77,10 +79,23 @@
         lat_max: undefined,
         lng_min: undefined,
         lng_max: undefined,
+        boundary: undefined,
         description: ''
       };
     }
     modalOpen = true;
+  }
+
+  function handleMapChange(e: CustomEvent) {
+    const { points, lat_min, lat_max, lng_min, lng_max } = e.detail;
+    formData = {
+      ...formData,
+      boundary: points.length >= 3 ? points : undefined,
+      lat_min,
+      lat_max,
+      lng_min,
+      lng_max
+    };
   }
 
   async function handleSubmit() {
@@ -152,7 +167,7 @@
   />
 </div>
 
-<Modal open={modalOpen} title={editingArea ? '编辑海区' : '新增海区'} size="lg">
+<Modal open={modalOpen} title={editingArea ? '编辑海区' : '新增海区'} size="2xl">
   <form on:submit|preventDefault={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>
@@ -172,7 +187,7 @@
           bind:value={formData.location}
           required
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-          placeholder="请输入位置"
+          placeholder="请输入位置描述"
         />
       </div>
     </div>
@@ -201,46 +216,18 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">纬度最小值</label>
-        <input
-          type="number"
-          step="0.0000001"
-          bind:value={formData.lat_min}
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">纬度最大值</label>
-        <input
-          type="number"
-          step="0.0000001"
-          bind:value={formData.lat_max}
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">经度最小值</label>
-        <input
-          type="number"
-          step="0.0000001"
-          bind:value={formData.lng_min}
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">经度最大值</label>
-        <input
-          type="number"
-          step="0.0000001"
-          bind:value={formData.lng_max}
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
-      </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">
+        海区范围（在地图上绘制）
+        {#if formData.boundary && formData.boundary.length >= 3}
+          <span class="ml-2 text-xs text-green-600 font-normal">✓ 已选择 {formData.boundary.length} 个顶点</span>
+        {/if}
+      </label>
+      <MapEditor
+        initialBoundary={formData.boundary || null}
+        height="400px"
+        on:change={handleMapChange}
+      />
     </div>
 
     <div>

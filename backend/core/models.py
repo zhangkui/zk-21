@@ -10,6 +10,7 @@ class SeaArea(models.Model):
     lat_max = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='纬度最大值')
     lng_min = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='经度最小值')
     lng_max = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name='经度最大值')
+    boundary = models.JSONField(null=True, blank=True, verbose_name='边界坐标(多边形点集合)')
     description = models.TextField(null=True, blank=True, verbose_name='描述')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')

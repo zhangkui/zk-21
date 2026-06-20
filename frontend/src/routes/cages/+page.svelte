@@ -2,18 +2,20 @@
   import { onMount } from 'svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { cageApi, seaAreaApi } from '$lib/stores/api';
-  import type { Cage, SeaArea } from '$lib/types';
+  import { cageApi, seaAreaApi, farmerApi } from '$lib/stores/api';
+  import type { Cage, SeaArea, Farmer } from '$lib/types';
 
   let cages: Cage[] = [];
   let seaAreas: SeaArea[] = [];
+  let farmers: Farmer[] = [];
   let loading = true;
   let errorMsg: string | null = null;
   let modalOpen = false;
   let editingCage: Partial<Cage> | null = null;
   let statusFilter = '';
+  let farmerFilter = '';
 
-  let formData: Partial<Cage> = {
+  let formData: Partial<Cage> & { farmer_ids?: number[] } = {
     code: '',
     sea_area: undefined,
     location: '',
@@ -21,7 +23,8 @@
     species: '',
     stocking_date: undefined,
     status: 'normal',
-    area: undefined
+    area: undefined,
+    farmer_ids: []
   };
 
   const statusOptions = [
@@ -42,6 +45,21 @@
     { key: 'id', label: 'ID' },
     { key: 'code', label: '网箱编号' },
     { key: 'sea_area_name', label: '所属海区' },
+    {
+      key: 'farmers',
+      label: '养殖户',
+      render: (_: any, row: Cage) => {
+        if (row.farmers && row.farmers.length > 0) {
+          return row.farmers
+            .map(
+              (f) =>
+                `<span class="inline-block px-2 py-0.5 mx-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full cursor-pointer hover:bg-blue-200" data-farmer-id="${f.id}">${f.name}</span>`
+            )
+            .join('');
+        }
+        return '<span class="text-gray-400">-</span>';
+      }
+    },
     { key: 'location', label: '位置' },
     { key: 'capacity', label: '容量(尾)' },
     { key: 'species', label: '养殖品种' },
@@ -63,22 +81,29 @@
     }
   ];
 
-  $: filteredCages = statusFilter
-    ? cages.filter((c) => c.status === statusFilter)
-    : cages;
+  $: filteredCages = cages.filter((c) => {
+    if (statusFilter && c.status !== statusFilter) return false;
+    if (farmerFilter) {
+      const fid = parseInt(farmerFilter);
+      if (!c.farmers || !c.farmers.some((f) => f.id === fid)) return false;
+    }
+    return true;
+  });
 
   async function loadData() {
     loading = true;
     try {
-      const [cagesRes, seaAreasRes] = await Promise.all([
+      const [cagesRes, seaAreasRes, farmersRes] = await Promise.all([
         cageApi.getAll(),
-        seaAreaApi.getAll()
+        seaAreaApi.getAll(),
+        farmerApi.getAll()
       ]);
+      seaAreas = seaAreasRes.data.results;
+      farmers = farmersRes.data.results;
       cages = cagesRes.data.results.map((c) => ({
         ...c,
-        sea_area_name: c.sea_area ? seaAreasRes.data.results.find((s) => s.id === c.sea_area)?.name : '-'
+        sea_area_name: c.sea_area ? seaAreas.find((s) => s.id === c.sea_area)?.name : '-'
       }));
-      seaAreas = seaAreasRes.data.results;
     } catch (err) {
       console.error('Failed to load data:', err);
       errorMsg = '加载数据失败，请稍后重试';
@@ -90,7 +115,10 @@
   function openModal(cage?: Cage) {
     if (cage) {
       editingCage = cage;
-      formData = { ...cage };
+      formData = {
+        ...cage,
+        farmer_ids: cage.farmers?.map((f) => f.id) || []
+      };
     } else {
       editingCage = null;
       formData = {
@@ -101,10 +129,22 @@
         species: '',
         stocking_date: undefined,
         status: 'normal',
-        area: undefined
+        area: undefined,
+        farmer_ids: []
       };
     }
     modalOpen = true;
+  }
+
+  function toggleFarmer(farmerId: number) {
+    if (!formData.farmer_ids) formData.farmer_ids = [];
+    const idx = formData.farmer_ids.indexOf(farmerId);
+    if (idx >= 0) {
+      formData.farmer_ids.splice(idx, 1);
+    } else {
+      formData.farmer_ids.push(farmerId);
+    }
+    formData = { ...formData };
   }
 
   async function handleSubmit() {
@@ -136,6 +176,10 @@
 
   function handleRowClick(row: Cage) {
     const target = event?.target as HTMLElement;
+    if (target.dataset.farmerId) {
+      window.location.href = `/farmers/${target.dataset.farmerId}`;
+      return;
+    }
     if (target.textContent === '查看') {
       window.location.href = `/cages/${row.id}`;
     } else if (target.textContent === '编辑') {
@@ -156,6 +200,15 @@
   <div class="flex items-center justify-between">
     <h2 class="text-2xl font-bold text-gray-900">网箱档案管理</h2>
     <div class="flex items-center gap-4">
+      <select
+        bind:value={farmerFilter}
+        class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+      >
+        <option value="">全部养殖户</option>
+        {#each farmers as f}
+          <option value={f.id}>{f.name}</option>
+        {/each}
+      </select>
       <select
         bind:value={statusFilter}
         class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
@@ -276,6 +329,30 @@
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
         />
       </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">关联养殖户</label>
+      <div class="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50">
+        {#if farmers.length === 0}
+          <p class="text-sm text-gray-500">暂无养殖户数据</p>
+        {:else}
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {#each farmers as f}
+              <label class="flex items-center gap-2 cursor-pointer hover:bg-white px-2 py-1 rounded">
+                <input
+                  type="checkbox"
+                  checked={formData.farmer_ids?.includes(f.id)}
+                  on:change={() => toggleFarmer(f.id)}
+                  class="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                />
+                <span class="text-sm text-gray-700">{f.name} ({f.phone})</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <p class="mt-1 text-xs text-gray-500">可多选，勾选关联的养殖户</p>
     </div>
   </form>
 

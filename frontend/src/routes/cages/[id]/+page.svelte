@@ -185,39 +185,59 @@
 
       <div class="p-6">
         {#if activeTab === 'basic'}
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <p class="text-sm text-gray-500">所属海区</p>
-              <p class="font-medium">{cage.sea_area_name || '-'}</p>
+          <div class="space-y-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div>
+                <p class="text-sm text-gray-500">所属海区</p>
+                <p class="font-medium">{cage.sea_area_name || '-'}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">位置</p>
+                <p class="font-medium">{cage.location}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">容量</p>
+                <p class="font-medium">{cage.capacity} 尾</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">面积</p>
+                <p class="font-medium">{cage.area || '-'} 平方米</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">养殖品种</p>
+                <p class="font-medium">{cage.species || '-'}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">投放日期</p>
+                <p class="font-medium">{cage.stocking_date || '-'}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">创建时间</p>
+                <p class="font-medium">{new Date(cage.created_at).toLocaleDateString('zh-CN')}</p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">更新时间</p>
+                <p class="font-medium">{new Date(cage.updated_at).toLocaleDateString('zh-CN')}</p>
+              </div>
             </div>
-            <div>
-              <p class="text-sm text-gray-500">位置</p>
-              <p class="font-medium">{cage.location}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">容量</p>
-              <p class="font-medium">{cage.capacity} 尾</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">面积</p>
-              <p class="font-medium">{cage.area || '-'} 平方米</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">养殖品种</p>
-              <p class="font-medium">{cage.species || '-'}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">投放日期</p>
-              <p class="font-medium">{cage.stocking_date || '-'}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">创建时间</p>
-              <p class="font-medium">{new Date(cage.created_at).toLocaleDateString('zh-CN')}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">更新时间</p>
-              <p class="font-medium">{new Date(cage.updated_at).toLocaleDateString('zh-CN')}</p>
-            </div>
+            {#if cage.farmers && cage.farmers.length > 0}
+              <div class="pt-4 border-t border-gray-100">
+                <p class="text-sm text-gray-500 mb-2">关联养殖户</p>
+                <div class="flex flex-wrap gap-2">
+                  {#each cage.farmers as f}
+                    <a
+                      href={`/farmers/${f.id}`}
+                      class="inline-block px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full hover:bg-blue-200 transition-colors"
+                    >
+                      {f.name}
+                      {#if f.phone}
+                        <span class="text-xs text-blue-600 ml-1">({f.phone})</span>
+                      {/if}
+                    </a>
+                  {/each}
+                </div>
+              </div>
+            {/if}
           </div>
         {:else if activeTab === 'inspection'}
           <DataTable columns={inspectionColumns} data={cage.inspection_points || []} />

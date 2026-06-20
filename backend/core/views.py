@@ -207,8 +207,18 @@ class SeaAreaViewSet(viewsets.ModelViewSet):
         queryset = queryset.annotate(
             cage_count=Count('cages', distinct=True),
             farmer_count=Count('farmers', distinct=True)
+        ).prefetch_related(
+            'cages',
+            'cages__cage_farmers',
+            'cages__cage_farmers__farmer',
+            'farmers'
         )
         return queryset
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return SeaAreaSerializer
+        return SeaAreaSerializer
 
     @action(detail=False, methods=['get'])
     def high_risk_areas(self, request):
@@ -282,6 +292,9 @@ class CageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        farmer_id = self.request.query_params.get('farmer')
+        if farmer_id:
+            queryset = queryset.filter(cage_farmers__farmer_id=farmer_id)
         queryset = queryset.annotate(
             _abnormal_report_count=Count(
                 'disease_reports',
@@ -302,6 +315,9 @@ class CageViewSet(viewsets.ModelViewSet):
                 default=Value('low'),
                 output_field=CharField()
             )
+        ).prefetch_related(
+            'cage_farmers',
+            'cage_farmers__farmer'
         )
         return queryset
 
