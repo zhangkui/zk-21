@@ -10,7 +10,7 @@ from .models import Role
 from .serializers import (
     RoleSerializer, UserSerializer, UserCreateSerializer, UserUpdateSerializer
 )
-from .permissions import IsAdminUser, is_admin_user
+from .permissions import IsAdminUser
 
 
 class LoginView(APIView):

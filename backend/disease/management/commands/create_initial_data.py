@@ -44,6 +44,7 @@ class Command(BaseCommand):
         self.create_roles_and_users()
         self.create_sea_areas()
         self.create_farmers()
+        self.link_farmers_to_users()
         self.create_cages()
         self.create_cage_farmer_relations()
         self.create_inspection_routes()
@@ -206,6 +207,25 @@ class Command(BaseCommand):
                     }
                 )
         self.stdout.write(f'  网箱-养殖户关联数据创建完成，共 {CageFarmer.objects.count()} 条')
+
+    def link_farmers_to_users(self):
+        self.stdout.write('关联养殖户用户与养殖户档案...')
+        farmer_user_map = {
+            'farmer_zhang': '张三',
+            'farmer_li': '李四',
+        }
+        linked_count = 0
+        for username, farmer_name in farmer_user_map.items():
+            try:
+                user = User.objects.get(username=username)
+                farmer = Farmer.objects.filter(name=farmer_name).first()
+                if farmer and not farmer.user:
+                    farmer.user = user
+                    farmer.save()
+                    linked_count += 1
+            except User.DoesNotExist:
+                continue
+        self.stdout.write(f'  养殖户用户关联完成，共关联 {linked_count} 个')
 
     def _reporter_users(self):
         return list(User.objects.filter(is_active=True))
