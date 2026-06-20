@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { auth } from '$lib/stores/auth';
 
   const menuItems = [
     { path: '/', label: '仪表板', icon: '📊' },
@@ -13,7 +14,13 @@
     { path: '/analytics', label: '统计分析', icon: '📈' }
   ];
 
+  const adminMenuItems = [
+    { path: '/accounts/users', label: '账号管理', icon: '👥' },
+    { path: '/accounts/roles', label: '角色管理', icon: '🔑' }
+  ];
+
   $: currentPath = $page.url.pathname;
+  $: isAdmin = $auth.user?.is_admin || $auth.user?.is_superuser || false;
 </script>
 
 <aside class="w-64 bg-slate-800 text-white h-screen flex flex-col fixed left-0 top-0 z-30">
@@ -37,6 +44,21 @@
         <span>{item.label}</span>
       </a>
     {/each}
+
+    {#if isAdmin}
+      <div class="pt-4 pb-2 px-4 text-xs text-slate-500 uppercase tracking-wider">系统管理</div>
+      {#each adminMenuItems as item}
+        <a
+          href={item.path}
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {currentPath.startsWith(item.path)
+            ? 'bg-primary-600 text-white'
+            : 'text-slate-300 hover:bg-slate-700 hover:text-white'}"
+        >
+          <span class="text-xl">{item.icon}</span>
+          <span>{item.label}</span>
+        </a>
+      {/each}
+    {/if}
   </nav>
 
   <div class="p-4 border-t border-slate-700">

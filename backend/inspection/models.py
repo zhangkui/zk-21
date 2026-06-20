@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from core.models import Cage
 
 
@@ -42,7 +43,13 @@ class InspectionRecord(models.Model):
     ]
 
     route = models.ForeignKey(InspectionRoute, on_delete=models.PROTECT, related_name='records', verbose_name='巡检路线')
-    inspector = models.CharField(max_length=100, verbose_name='巡检人')
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='inspection_records',
+        verbose_name='巡检人'
+    )
     start_time = models.DateTimeField(null=True, blank=True, verbose_name='开始时间')
     end_time = models.DateTimeField(null=True, blank=True, verbose_name='结束时间')
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
@@ -56,7 +63,8 @@ class InspectionRecord(models.Model):
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return f'{self.route.name} - {self.inspector} - {self.created_at.strftime("%Y-%m-%d")}'
+        inspector_name = self.inspector.username if self.inspector else '未分配'
+        return f'{self.route.name} - {inspector_name} - {self.created_at.strftime("%Y-%m-%d")}'
 
 
 class InspectionPoint(models.Model):

@@ -64,11 +64,18 @@ class InspectionRecordSerializer(serializers.ModelSerializer):
     abnormal_count = serializers.IntegerField(read_only=True)
     points = InspectionPointSerializer(many=True, read_only=True)
     point_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+    inspector_name = serializers.SerializerMethodField()
 
     class Meta:
         model = InspectionRecord
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+    def get_inspector_name(self, obj):
+        if obj.inspector:
+            full = obj.inspector.get_full_name()
+            return full if full else obj.inspector.username
+        return '未分配'
 
     def create(self, validated_data):
         point_data_list = validated_data.pop('point_ids', [])
@@ -85,8 +92,15 @@ class InspectionRecordDetailSerializer(serializers.ModelSerializer):
     abnormal_count = serializers.IntegerField(read_only=True)
     points = InspectionPointSerializer(many=True, read_only=True)
     route_details = InspectionRouteSerializer(source='route', read_only=True)
+    inspector_name = serializers.SerializerMethodField()
 
     class Meta:
         model = InspectionRecord
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+    def get_inspector_name(self, obj):
+        if obj.inspector:
+            full = obj.inspector.get_full_name()
+            return full if full else obj.inspector.username
+        return '未分配'

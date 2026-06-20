@@ -2,19 +2,23 @@
   import { onMount } from 'svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { mortalityReportApi, cageApi } from '$lib/stores/api';
-  import type { MortalityReport, Cage } from '$lib/types';
+  import { mortalityReportApi, cageApi, userApi } from '$lib/stores/api';
+  import { auth } from '$lib/stores/auth';
+  import type { MortalityReport, Cage, User } from '$lib/types';
 
   let reports: MortalityReport[] = [];
   let cages: Cage[] = [];
+  let users: User[] = [];
   let loading = true;
   let errorMsg: string | null = null;
   let modalOpen = false;
   let statusFilter = '';
 
+  $: isAdmin = $auth.user?.is_admin || false;
+
   let formData: Partial<MortalityReport> = {
     cage: undefined,
-    reporter: '',
+    reporter: undefined,
     mortality_count: 0,
     cause: 'unknown',
     description: '',
@@ -60,7 +64,7 @@
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'cage_code', label: '网箱编号' },
-    { key: 'reporter', label: '上报人' },
+    { key: 'reporter_name', label: '上报人' },
     {
       key: 'report_time',
       label: '上报时间',
@@ -96,15 +100,17 @@
   async function loadData() {
     loading = true;
     try {
-      const [reportsRes, cagesRes] = await Promise.all([
+      const [reportsRes, cagesRes, usersRes] = await Promise.all([
         mortalityReportApi.getAll(),
-        cageApi.getAll()
+        cageApi.getAll(),
+        userApi.getAll()
       ]);
       reports = reportsRes.data.results.map((r) => ({
         ...r,
         cage_code: cagesRes.data.results.find((c) => c.id === r.cage)?.code || '-'
       }));
       cages = cagesRes.data.results;
+      users = usersRes.data.results;
     } catch (err) {
       console.error('Failed to load data:', err);
       errorMsg = '加载数据失败，请稍后重试';
@@ -116,7 +122,7 @@
   function openModal() {
     formData = {
       cage: undefined,
-      reporter: '',
+      reporter: isAdmin ? undefined : ($auth.user?.id || undefined),
       mortality_count: 0,
       cause: 'unknown',
       description: '',
@@ -137,7 +143,9 @@
     try {
       const formDataToSend = new FormData();
       formDataToSend.append('cage', String(formData.cage || ''));
-      formDataToSend.append('reporter', formData.reporter || '');
+      if (isAdmin && formData.reporter) {
+        formDataToSend.append('reporter', String(formData.reporter));
+      }
       formDataToSend.append('mortality_count', String(formData.mortality_count || 0));
       formDataToSend.append('cause', formData.cause || '');
       formDataToSend.append('description', formData.description || '');
@@ -215,13 +223,25 @@
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">上报人 *</label>
-        <input
-          type="text"
-          bind:value={formData.reporter}
-          required
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
+        <label class="block text-sm font-medium text-gray-700 mb-1">上报人 {isAdmin ? '*' : '(默认当前用户)'}</label>
+        {#if isAdmin}
+          <select
+            bind:value={formData.reporter}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+          >
+            <option value={undefined}>请选择上报人</option>
+            {#each users as u}
+              <option value={u.id}>{u.display_name || u.username}</option>
+            {/each}
+          </select>
+        {:else}
+          <input
+            type="text"
+            value={$auth.user?.display_name || $auth.user?.username || ''}
+            disabled
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 outline-none"
+          />
+        {/if}
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">

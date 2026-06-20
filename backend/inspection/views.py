@@ -58,13 +58,31 @@ class InspectionRouteViewSet(viewsets.ModelViewSet):
 class InspectionRecordViewSet(viewsets.ModelViewSet):
     queryset = InspectionRecord.objects.all()
     filterset_fields = ['route', 'inspector', 'status']
-    search_fields = ['route__name', 'inspector', 'remarks']
+    search_fields = ['route__name', 'remarks']
     ordering_fields = ['created_at', 'start_time', 'end_time']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return InspectionRecordDetailSerializer
         return InspectionRecordSerializer
+
+    def perform_create(self, serializer):
+        inspector = serializer.validated_data.get('inspector')
+        user = self.request.user
+        if inspector is None and user and user.is_authenticated:
+            inspector = user
+            serializer.validated_data['inspector'] = inspector
+        serializer.save(inspector=inspector)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        inspector = serializer.validated_data.get('inspector', None)
+        if 'inspector' not in serializer.validated_data:
+            instance = serializer.instance
+            inspector = instance.inspector
+        if inspector is None and user and user.is_authenticated:
+            inspector = user
+        serializer.save(inspector=inspector)
 
     def get_queryset(self):
         queryset = super().get_queryset()

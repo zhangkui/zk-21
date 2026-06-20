@@ -2,17 +2,46 @@ import random
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+from django.contrib.auth.models import User
 from core.models import SeaArea, Farmer, Cage, CageFarmer
-from inspection.models import InspectionRoute, InspectionRecord, InspectionPoint
+from inspection.models import InspectionRoute, InspectionRecord, InspectionPoint, InspectionRouteCage
 from disease.models import DiseaseReport, MortalityReport
+from accounts.models import Role, UserProfile
+
+
+SYSTEM_USERS = [
+    {'username': 'admin', 'password': 'admin123456', 'role_code': 'admin',
+     'name': '系统管理员', 'phone': '13800000000', 'superuser': True},
+    {'username': 'inspector_wang', 'password': '123456', 'role_code': 'inspector',
+     'name': '巡检员小王', 'phone': '13800138001', 'superuser': False},
+    {'username': 'inspector_li', 'password': '123456', 'role_code': 'inspector',
+     'name': '巡检员小李', 'phone': '13800138002', 'superuser': False},
+    {'username': 'tech_chen', 'password': '123456', 'role_code': 'technician',
+     'name': '技术人员小陈', 'phone': '13800138003', 'superuser': False},
+    {'username': 'tech_zhao', 'password': '123456', 'role_code': 'technician',
+     'name': '技术人员小赵', 'phone': '13800138004', 'superuser': False},
+    {'username': 'farmer_zhang', 'password': '123456', 'role_code': 'farmer',
+     'name': '养殖户张三', 'phone': '13800138005', 'superuser': False},
+    {'username': 'farmer_li', 'password': '123456', 'role_code': 'farmer',
+     'name': '养殖户李四', 'phone': '13800138006', 'superuser': False},
+]
+
+
+def build_boundary(lat_min, lat_max, lng_min, lng_max):
+    return [
+        [lat_min, lng_min],
+        [lat_min, lng_max],
+        [lat_max, lng_max],
+        [lat_max, lng_min],
+    ]
 
 
 class Command(BaseCommand):
-    help = '创建初始测试数据'
+    help = '创建初始测试数据(含账号、角色、巡检人/上报人关联)'
 
     def handle(self, *args, **options):
         self.stdout.write('开始创建初始数据...')
-
+        self.create_roles_and_users()
         self.create_sea_areas()
         self.create_farmers()
         self.create_cages()
@@ -21,8 +50,50 @@ class Command(BaseCommand):
         self.create_inspection_records()
         self.create_disease_reports()
         self.create_mortality_reports()
-
         self.stdout.write(self.style.SUCCESS('初始数据创建完成！'))
+
+    def create_roles_and_users(self):
+        self.stdout.write('创建角色与账号...')
+        for code, name in Role.ROLE_CHOICES:
+            Role.objects.get_or_create(
+                code=code,
+                defaults={'name': name, 'description': f'{name}角色'}
+            )
+
+        for u in SYSTEM_USERS:
+            if u['superuser']:
+                user, created = User.objects.get_or_create(
+                    username=u['username'],
+                    defaults={
+                        'email': f"{u['username']}@example.com",
+                        'is_staff': True,
+                        'is_superuser': True,
+                    }
+                )
+                if created:
+                    user.set_password(u['password'])
+                    user.save()
+            else:
+                user, created = User.objects.get_or_create(
+                    username=u['username'],
+                    defaults={'email': f"{u['username']}@example.com", 'is_staff': False}
+                )
+                if created:
+                    user.set_password(u['password'])
+                    user.save()
+
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            role = Role.objects.filter(code=u['role_code']).first()
+            if role:
+                profile.role = role
+            if u.get('name'):
+                user.first_name = u['name']
+                user.save()
+            profile.phone = u.get('phone', '') or None
+            profile.save()
+
+        self.stdout.write(f'  账号数据创建完成，共 {User.objects.count()} 个用户，'
+                          f'{Role.objects.count()} 个角色')
 
     def create_sea_areas(self):
         self.stdout.write('创建海区数据...')
@@ -32,10 +103,7 @@ class Command(BaseCommand):
                 'location': '浙江省舟山市普陀区',
                 'area': 500.50,
                 'depth': 25.5,
-                'lat_min': 29.5,
-                'lat_max': 30.2,
-                'lng_min': 121.8,
-                'lng_max': 122.5,
+                'boundary': build_boundary(29.5, 30.2, 121.8, 122.5),
                 'description': '主要养殖大黄鱼、石斑鱼等优质海水鱼'
             },
             {
@@ -43,10 +111,7 @@ class Command(BaseCommand):
                 'location': '浙江省宁波市象山县',
                 'area': 380.25,
                 'depth': 18.0,
-                'lat_min': 29.0,
-                'lat_max': 29.6,
-                'lng_min': 121.5,
-                'lng_max': 122.0,
+                'boundary': build_boundary(29.0, 29.6, 121.5, 122.0),
                 'description': '主要养殖鲈鱼、黑鲷等'
             },
             {
@@ -54,10 +119,7 @@ class Command(BaseCommand):
                 'location': '广东省深圳市大鹏新区',
                 'area': 620.00,
                 'depth': 30.0,
-                'lat_min': 22.3,
-                'lat_max': 22.8,
-                'lng_min': 114.3,
-                'lng_max': 114.9,
+                'boundary': build_boundary(22.3, 22.8, 114.3, 114.9),
                 'description': '主要养殖石斑鱼、金枪鱼等热带鱼类'
             },
             {
@@ -65,10 +127,7 @@ class Command(BaseCommand):
                 'location': '山东省烟台市蓬莱区',
                 'area': 450.75,
                 'depth': 20.0,
-                'lat_min': 37.5,
-                'lat_max': 38.0,
-                'lng_min': 120.5,
-                'lng_max': 121.0,
+                'boundary': build_boundary(37.5, 38.0, 120.5, 121.0),
                 'description': '主要养殖海参、鲍鱼、扇贝等海珍品'
             },
             {
@@ -76,10 +135,7 @@ class Command(BaseCommand):
                 'location': '福建省宁德市蕉城区',
                 'area': 720.00,
                 'depth': 15.0,
-                'lat_min': 26.4,
-                'lat_max': 26.8,
-                'lng_min': 119.4,
-                'lng_max': 119.9,
+                'boundary': build_boundary(26.4, 26.8, 119.4, 119.9),
                 'description': '中国最大的大黄鱼养殖基地'
             }
         ]
@@ -151,14 +207,23 @@ class Command(BaseCommand):
                 )
         self.stdout.write(f'  网箱-养殖户关联数据创建完成，共 {CageFarmer.objects.count()} 条')
 
+    def _reporter_users(self):
+        return list(User.objects.filter(is_active=True))
+
+    def _inspector_users(self):
+        qs = User.objects.filter(is_active=True, profile__role__code__in=['inspector', 'technician', 'admin'])
+        users = list(qs)
+        return users or self._reporter_users()
+
     def create_inspection_routes(self):
         self.stdout.write('创建巡检路线数据...')
         sea_areas = list(SeaArea.objects.all())
+        admin = User.objects.filter(username='admin').first()
         routes_data = [
-            {'name': '日常巡检路线A', 'description': '覆盖东区主要养殖区', 'creator': '系统管理员'},
-            {'name': '重点监控路线B', 'description': '针对高风险区域的巡检', 'creator': '系统管理员'},
-            {'name': '水质监测路线C', 'description': '定期水质检测路线', 'creator': '技术人员'},
-            {'name': '病害排查路线D', 'description': '病害发生时的紧急排查', 'creator': '技术人员'},
+            {'name': '日常巡检路线A', 'description': '覆盖东区主要养殖区', 'creator': admin.username if admin else '系统管理员'},
+            {'name': '重点监控路线B', 'description': '针对高风险区域的巡检', 'creator': admin.username if admin else '系统管理员'},
+            {'name': '水质监测路线C', 'description': '定期水质检测路线', 'creator': '技术人员小陈'},
+            {'name': '病害排查路线D', 'description': '病害发生时的紧急排查', 'creator': '技术人员小陈'},
         ]
 
         for data in routes_data:
@@ -169,7 +234,6 @@ class Command(BaseCommand):
                 if cages:
                     selected_cages = random.sample(cages, min(5, len(cages)))
                     for idx, cage in enumerate(selected_cages):
-                        from inspection.models import InspectionRouteCage
                         InspectionRouteCage.objects.get_or_create(
                             route=route,
                             cage=cage,
@@ -180,7 +244,7 @@ class Command(BaseCommand):
     def create_inspection_records(self):
         self.stdout.write('创建巡检记录数据...')
         routes = list(InspectionRoute.objects.all())
-        inspectors = ['巡检员小王', '巡检员小李', '巡检员小张', '技术人员小陈']
+        inspectors = self._inspector_users()
         status_list = ['pending', 'in_progress', 'completed', 'completed', 'completed', 'cancelled']
 
         for i in range(20):
@@ -191,7 +255,7 @@ class Command(BaseCommand):
 
             record_data = {
                 'route': route,
-                'inspector': random.choice(inspectors),
+                'inspector': random.choice(inspectors) if inspectors else None,
                 'start_time': start_time,
                 'end_time': end_time,
                 'status': status,
@@ -220,7 +284,7 @@ class Command(BaseCommand):
     def create_disease_reports(self):
         self.stdout.write('创建病害上报数据...')
         cages = list(Cage.objects.all())
-        reporters = ['养殖户张三', '养殖户李四', '巡检员小王', '技术人员小陈']
+        reporters = self._reporter_users()
         disease_types = ['bacterial', 'viral', 'parasitic', 'fungal', 'nutritional', 'environmental', 'other']
         severities = ['mild', 'moderate', 'severe', 'critical']
         statuses = ['pending', 'processing', 'resolved', 'closed']
@@ -237,17 +301,17 @@ class Command(BaseCommand):
         for i in range(15):
             cage = random.choice(cages)
             disease_type = random.choice(disease_types)
-            status = random.choice(statuses)
+            rep_status = random.choice(statuses)
             report_data = {
                 'cage': cage,
-                'reporter': random.choice(reporters),
+                'reporter': random.choice(reporters) if reporters else None,
                 'disease_type': disease_type,
                 'severity': random.choice(severities),
                 'description': disease_descriptions[disease_type],
-                'status': status,
-                'treated_by': '兽医王医生' if status in ['processing', 'resolved', 'closed'] else None,
-                'treatment_method': '使用抗生素治疗，改善水质环境' if status in ['processing', 'resolved', 'closed'] else None,
-                'treatment_time': timezone.now() if status in ['processing', 'resolved', 'closed'] else None,
+                'status': rep_status,
+                'treated_by': '兽医王医生' if rep_status in ['processing', 'resolved', 'closed'] else None,
+                'treatment_method': '使用抗生素治疗，改善水质环境' if rep_status in ['processing', 'resolved', 'closed'] else None,
+                'treatment_time': timezone.now() if rep_status in ['processing', 'resolved', 'closed'] else None,
             }
             report = DiseaseReport.objects.create(**report_data)
             report.report_time = timezone.now() - timedelta(days=random.randint(0, 30))
@@ -257,7 +321,7 @@ class Command(BaseCommand):
     def create_mortality_reports(self):
         self.stdout.write('创建死亡上报数据...')
         cages = list(Cage.objects.all())
-        reporters = ['养殖户张三', '养殖户李四', '巡检员小王', '技术人员小陈']
+        reporters = self._reporter_users()
         causes = ['disease', 'predation', 'environment', 'feeding', 'operation', 'unknown', 'other']
         statuses = ['pending', 'processing', 'resolved', 'closed']
         descriptions = {
@@ -273,17 +337,17 @@ class Command(BaseCommand):
         for i in range(12):
             cage = random.choice(cages)
             cause = random.choice(causes)
-            status = random.choice(statuses)
+            rep_status = random.choice(statuses)
             report_data = {
                 'cage': cage,
-                'reporter': random.choice(reporters),
+                'reporter': random.choice(reporters) if reporters else None,
                 'mortality_count': random.randint(10, 500),
                 'cause': cause,
                 'description': descriptions[cause],
-                'status': status,
-                'treated_by': '技术员小李' if status in ['processing', 'resolved', 'closed'] else None,
-                'treatment_method': '清理死鱼，消毒网箱，调整投喂方案' if status in ['processing', 'resolved', 'closed'] else None,
-                'treatment_time': timezone.now() if status in ['processing', 'resolved', 'closed'] else None,
+                'status': rep_status,
+                'treated_by': '技术员小李' if rep_status in ['processing', 'resolved', 'closed'] else None,
+                'treatment_method': '清理死鱼，消毒网箱，调整投喂方案' if rep_status in ['processing', 'resolved', 'closed'] else None,
+                'treatment_time': timezone.now() if rep_status in ['processing', 'resolved', 'closed'] else None,
             }
             report = MortalityReport.objects.create(**report_data)
             report.report_time = timezone.now() - timedelta(days=random.randint(0, 30))

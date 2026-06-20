@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from core.models import Cage
 
 
@@ -36,7 +37,13 @@ class DiseaseReport(models.Model):
     ]
 
     cage = models.ForeignKey(Cage, on_delete=models.CASCADE, related_name='disease_reports', verbose_name='网箱')
-    reporter = models.CharField(max_length=100, verbose_name='上报人')
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='disease_reports',
+        verbose_name='上报人'
+    )
     report_time = models.DateTimeField(auto_now_add=True, verbose_name='上报时间')
     disease_type = models.CharField(max_length=50, choices=DISEASE_TYPES, verbose_name='病害类型')
     severity = models.CharField(max_length=50, choices=SEVERITY_CHOICES, verbose_name='严重程度')
@@ -80,7 +87,13 @@ class MortalityReport(models.Model):
     ]
 
     cage = models.ForeignKey(Cage, on_delete=models.CASCADE, related_name='mortality_reports', verbose_name='网箱')
-    reporter = models.CharField(max_length=100, verbose_name='上报人')
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='mortality_reports',
+        verbose_name='上报人'
+    )
     report_time = models.DateTimeField(auto_now_add=True, verbose_name='上报时间')
     mortality_count = models.IntegerField(verbose_name='死亡数量(尾)')
     cause = models.CharField(max_length=50, choices=CAUSE_CHOICES, verbose_name='死亡原因')

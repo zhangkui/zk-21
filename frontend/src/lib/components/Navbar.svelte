@@ -1,11 +1,19 @@
 <script lang="ts">
   import { auth } from '$lib/stores/auth';
+  import { authApi } from '$lib/stores/api';
+  import { goto } from '$app/navigation';
 
   let userMenuOpen = false;
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      console.error('Logout error:', e);
+    }
     auth.logout();
     userMenuOpen = false;
+    goto('/login');
   }
 </script>
 
@@ -32,7 +40,14 @@
           <div class="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-semibold">
             {$auth.user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
-          <span class="text-gray-700">{$auth.user?.username || '用户'}</span>
+          <div class="text-left">
+            <div class="text-gray-700 text-sm font-medium">
+              {$auth.user?.display_name || $auth.user?.username || '用户'}
+            </div>
+            {#if $auth.user?.role_name}
+              <div class="text-xs text-gray-400">{$auth.user.role_name}</div>
+            {/if}
+          </div>
           <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
@@ -40,8 +55,7 @@
 
         {#if userMenuOpen}
           <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
-            <a href="/profile" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">个人中心</a>
-            <a href="/settings" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">设置</a>
+            <a href="/" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">返回首页</a>
             <hr class="my-1 border-gray-200" />
             <button
               on:click={handleLogout}

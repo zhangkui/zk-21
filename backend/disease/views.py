@@ -15,6 +15,31 @@ from .tasks import (
 )
 
 
+def _is_admin(user):
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    profile = getattr(user, 'profile', None)
+    if profile and profile.role and profile.role.code == 'admin':
+        return True
+    return False
+
+
+def _resolve_reporter(request):
+    user = request.user
+    reporter = request.data.get('reporter', None) if isinstance(request.data, dict) else None
+    if _is_admin(user):
+        if reporter in (None, '', 'null'):
+            return user
+        try:
+            from django.contrib.auth.models import User
+            return User.objects.get(pk=int(reporter))
+        except (ValueError, TypeError, User.DoesNotExist):
+            return user
+    return user
+
+
 class RecentReportsView(APIView):
     def get(self, request):
         reports = []
@@ -29,7 +54,8 @@ class RecentReportsView(APIView):
                 'type': 'disease',
                 'cage_code': r.cage.code if r.cage else '',
                 'cage_id': r.cage.id if r.cage else None,
-                'reporter': r.reporter,
+                'reporter': r.reporter.username if r.reporter else '',
+                'description': r.description,
                 'report_time': r.report_time.isoformat(),
                 'title': f'病害上报 - {r.get_disease_type_display()}',
                 'severity': r.severity,
@@ -37,14 +63,15 @@ class RecentReportsView(APIView):
                 'is_anomaly': r.is_anomaly,
                 'anomaly_score': r.anomaly_score,
             })
-        
+
         for r in mortality_reports:
             reports.append({
                 'id': r.id,
                 'type': 'mortality',
                 'cage_code': r.cage.code if r.cage else '',
                 'cage_id': r.cage.id if r.cage else None,
-                'reporter': r.reporter,
+                'reporter': r.reporter.username if r.reporter else '',
+                'description': r.description,
                 'report_time': r.report_time.isoformat(),
                 'title': f'死亡上报 - 死亡{r.mortality_count}尾',
                 'mortality_count': r.mortality_count,
@@ -156,7 +183,7 @@ class DiseaseReportViewSet(viewsets.ModelViewSet):
     queryset = DiseaseReport.objects.all()
     serializer_class = DiseaseReportSerializer
     filterset_fields = ['cage', 'disease_type', 'severity', 'status', 'reporter', 'is_anomaly']
-    search_fields = ['cage__code', 'reporter', 'description', 'treatment_method']
+    search_fields = ['cage__code', 'description', 'treatment_method']
     ordering_fields = ['report_time', 'created_at', 'severity', 'anomaly_score']
 
     def get_queryset(self):
@@ -170,6 +197,11 @@ class DiseaseReportViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.validated_data.pop('reporter', None)
+        reporter = _resolve_reporter(self.request)
+        serializer.save(reporter=reporter)
 
     @action(detail=True, methods=['post'])
     def process(self, request, pk=None):
@@ -263,7 +295,7 @@ class MortalityReportViewSet(viewsets.ModelViewSet):
     queryset = MortalityReport.objects.all()
     serializer_class = MortalityReportSerializer
     filterset_fields = ['cage', 'cause', 'status', 'reporter', 'is_anomaly']
-    search_fields = ['cage__code', 'reporter', 'description', 'treatment_method']
+    search_fields = ['cage__code', 'description', 'treatment_method']
     ordering_fields = ['report_time', 'created_at', 'mortality_count', 'anomaly_score']
 
     def get_queryset(self):
@@ -277,6 +309,11 @@ class MortalityReportViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.validated_data.pop('reporter', None)
+        reporter = _resolve_reporter(self.request)
+        serializer.save(reporter=reporter)
 
     @action(detail=True, methods=['post'])
     def process(self, request, pk=None):

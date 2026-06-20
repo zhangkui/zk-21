@@ -123,7 +123,7 @@
             </div>
             <div>
               <p class="text-sm text-gray-500">上报人</p>
-              <p class="font-medium">{report.reporter}</p>
+              <p class="font-medium">{report.reporter_name || '-'}</p>
             </div>
             <div>
               <p class="text-sm text-gray-500">上报时间</p>

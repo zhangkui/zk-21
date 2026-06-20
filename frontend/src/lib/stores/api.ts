@@ -12,7 +12,10 @@ import type {
   MonthlyTrend,
   HighRiskArea,
   RecentReport,
-  ApiResponse
+  ApiResponse,
+  User,
+  Role,
+  LoginResponse
 } from '$lib/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -44,6 +47,10 @@ api.interceptors.response.use(
     if (isBrowser && error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -158,4 +165,47 @@ export const analyticsApi = {
   getMortalityStats: () => api.get('/disease/analytics/mortality_stats/'),
   getHeatmapData: () => api.get('/core/analytics/heatmap/'),
   getFarmerResponsibility: () => api.get('/core/analytics/farmer_responsibility/')
+};
+
+export const authApi = {
+  login: (data: { username: string; password: string }) =>
+    api.post<LoginResponse>('/accounts/login/', data),
+  logout: () => api.post('/accounts/logout/'),
+  getCurrentUser: () => api.get<User>('/accounts/me/'),
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    api.post('/accounts/change-password/', data)
+};
+
+export const userApi = {
+  getAll: (params?: Record<string, any>) =>
+    api.get<ApiResponse<User[]>>('/accounts/users/', { params }),
+  getById: (id: number) => api.get<User>(`/accounts/users/${id}/`),
+  create: (data: {
+    username: string;
+    email?: string;
+    password: string;
+    password2: string;
+    is_active?: boolean;
+    is_staff?: boolean;
+    role_id?: number | null;
+    phone?: string;
+  }) => api.post<User>('/accounts/users/', data),
+  update: (id: number, data: Partial<{
+    username: string;
+    email: string;
+    is_active: boolean;
+    is_staff: boolean;
+    role_id: number | null;
+    phone: string;
+    password: string;
+  }>) => api.put<User>(`/accounts/users/${id}/`, data),
+  delete: (id: number) => api.delete(`/accounts/users/${id}/`)
+};
+
+export const roleApi = {
+  getAll: () => api.get<ApiResponse<Role[]>>('/accounts/roles/'),
+  getById: (id: number) => api.get<Role>(`/accounts/roles/${id}/`),
+  create: (data: Partial<Role>) => api.post<Role>('/accounts/roles/', data),
+  update: (id: number, data: Partial<Role>) => api.put<Role>(`/accounts/roles/${id}/`, data),
+  delete: (id: number) => api.delete(`/accounts/roles/${id}/`)
 };

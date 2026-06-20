@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { inspectionRecordApi, inspectionRouteApi, cageApi } from '$lib/stores/api';
-  import type { InspectionRecord, InspectionRoute, Cage, InspectionPoint } from '$lib/types';
+  import { inspectionRecordApi, inspectionRouteApi, cageApi, userApi } from '$lib/stores/api';
+  import { auth } from '$lib/stores/auth';
+  import type { InspectionRecord, InspectionRoute, Cage, InspectionPoint, User } from '$lib/types';
 
   let records: InspectionRecord[] = [];
   let routes: InspectionRoute[] = [];
   let cages: Cage[] = [];
+  let users: User[] = [];
   let loading = true;
   let errorMsg: string | null = null;
   let modalOpen = false;
@@ -16,9 +18,11 @@
   let currentCageIndex = 0;
   let currentPoint: Partial<InspectionPoint> = {};
 
+  $: isAdmin = $auth.user?.is_admin || false;
+
   let formData: Partial<InspectionRecord> = {
     route: undefined,
-    inspector: '',
+    inspector: undefined,
     status: 'pending',
     remarks: ''
   };
@@ -48,7 +52,7 @@
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'route_name', label: '巡检路线' },
-    { key: 'inspector', label: '巡检人' },
+    { key: 'inspector_name', label: '巡检人' },
     {
       key: 'start_time',
       label: '开始时间',
@@ -84,10 +88,11 @@
   async function loadData() {
     loading = true;
     try {
-      const [recordsRes, routesRes, cagesRes] = await Promise.all([
+      const [recordsRes, routesRes, cagesRes, usersRes] = await Promise.all([
         inspectionRecordApi.getAll(),
         inspectionRouteApi.getAll(),
-        cageApi.getAll()
+        cageApi.getAll(),
+        userApi.getAll()
       ]);
       records = recordsRes.data.results.map((r) => ({
         ...r,
@@ -95,6 +100,7 @@
       }));
       routes = routesRes.data.results;
       cages = cagesRes.data.results;
+      users = usersRes.data.results;
     } catch (err) {
       console.error('Failed to load data:', err);
       errorMsg = '加载数据失败，请稍后重试';
@@ -107,7 +113,12 @@
     if (record) {
       formData = { ...record };
     } else {
-      formData = { route: undefined, inspector: '', status: 'pending', remarks: '' };
+      formData = {
+        route: undefined,
+        inspector: isAdmin ? undefined : ($auth.user?.id || undefined),
+        status: 'pending',
+        remarks: ''
+      };
     }
     modalOpen = true;
   }
@@ -262,13 +273,25 @@
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">巡检人 *</label>
-        <input
-          type="text"
-          bind:value={formData.inspector}
-          required
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-        />
+        <label class="block text-sm font-medium text-gray-700 mb-1">巡检人 {isAdmin ? '*' : '(默认当前用户)'}</label>
+        {#if isAdmin}
+          <select
+            bind:value={formData.inspector}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+          >
+            <option value={undefined}>请选择巡检人</option>
+            {#each users as u}
+              <option value={u.id}>{u.display_name || u.username}</option>
+            {/each}
+          </select>
+        {:else}
+          <input
+            type="text"
+            value={$auth.user?.display_name || $auth.user?.username || ''}
+            disabled
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 outline-none"
+          />
+        {/if}
       </div>
     </div>
     <div>

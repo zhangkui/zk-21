@@ -76,7 +76,8 @@ export interface DiseaseReport {
   id: number;
   cage: number;
   cage_code?: string;
-  reporter: string;
+  reporter: number | null;
+  reporter_name?: string;
   report_time: string;
   disease_type: 'bacterial' | 'viral' | 'parasitic' | 'fungal' | 'nutritional' | 'environmental' | 'other';
   severity: 'mild' | 'moderate' | 'severe' | 'critical';
@@ -96,7 +97,8 @@ export interface MortalityReport {
   id: number;
   cage: number;
   cage_code?: string;
-  reporter: string;
+  reporter: number | null;
+  reporter_name?: string;
   report_time: string;
   mortality_count: number;
   cause: 'disease' | 'predation' | 'environment' | 'feeding' | 'operation' | 'unknown' | 'other';
@@ -135,7 +137,8 @@ export interface InspectionRecord {
   id: number;
   route: number;
   route_name?: string;
-  inspector: string;
+  inspector: number | null;
+  inspector_name?: string;
   start_time?: string;
   end_time?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -193,11 +196,43 @@ export interface RecentReport {
   description: string;
 }
 
+export interface Role {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  user_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UserRoleInfo {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export interface User {
   id: number;
   username: string;
   email: string;
+  is_active?: boolean;
+  is_staff?: boolean;
+  role?: UserRoleInfo | null;
+  role_id?: number | null;
+  role_code?: string;
+  role_name?: string;
+  phone?: string;
+  profile_phone?: string;
+  display_name?: string;
+  is_admin?: boolean;
+  date_joined?: string;
   token?: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: User;
 }
 
 export interface ApiResponse<T> {
