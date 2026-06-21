@@ -107,10 +107,6 @@
     { key: 'description', label: '描述' }
   ];
 
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleString('zh-CN');
-  }
-
   onMount(async () => {
     const results = await Promise.allSettled([
       dashboardApi.getStats(),
@@ -144,13 +140,14 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6 relative">
   {#if loading}
-    <div class="flex items-center justify-center py-8">
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/70 rounded-xl">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       <span class="ml-3 text-gray-500">加载中...</span>
     </div>
-  {:else}
+  {/if}
+
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <StatCard title="海区数量" value={stats.sea_areas_count} icon="🌊" color="blue" percentage={stats.sea_areas_percentage} percentageLabel="高风险占比" />
     <StatCard title="网箱数量" value={stats.cages_count} icon="🗑️" color="green" percentage={stats.cages_percentage} percentageLabel="异常占比" />
@@ -191,5 +188,4 @@
       }}
     />
   </div>
-  {/if}
 </div>

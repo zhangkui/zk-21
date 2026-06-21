@@ -162,12 +162,23 @@ class HeatmapDataView(APIView):
 
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
+        from accounts.permissions import is_farmer, get_farmer_cage_ids
         data = []
         seven_days_ago = timezone.now() - timedelta(days=7)
+        user = request.user
+
+        farmer_cage_ids = None
+        if is_farmer(user):
+            farmer_cage_ids = set(get_farmer_cage_ids(user))
 
         for area in SeaArea.objects.all():
             cages = area.cages.all()
-            cage_ids = list(cages.values_list('id', flat=True))
+            cage_ids = set(cages.values_list('id', flat=True))
+
+            if farmer_cage_ids is not None:
+                cage_ids = cage_ids & farmer_cage_ids
+                if not cage_ids:
+                    continue
 
             disease_reports = DiseaseReport.objects.filter(
                 cage_id__in=cage_ids,
@@ -179,20 +190,22 @@ class HeatmapDataView(APIView):
                 report_time__gte=seven_days_ago
             ).count()
 
-            abnormal_cages = cages.filter(
+            abnormal_cages = Cage.objects.filter(id__in=cage_ids).filter(
                 Q(disease_reports__status='pending') |
                 Q(mortality_reports__status='pending') |
                 Q(status='abnormal')
             ).distinct().count()
 
-            total_cages = cages.count()
+            total_cages = len(cage_ids)
             risk_score = 0
             if total_cages > 0:
                 risk_score = (abnormal_cages / total_cages) * 50 + (disease_reports + mortality_reports) * 2
                 risk_score = min(risk_score, 100)
 
             risk_level = 'low'
-            if risk_score >= 50:
+            if risk_score >= 80:
+                risk_level = 'critical'
+            elif risk_score >= 50:
                 risk_level = 'high'
             elif risk_score >= 20:
                 risk_level = 'medium'
@@ -209,7 +222,7 @@ class HeatmapDataView(APIView):
                 'abnormal_cages': abnormal_cages,
                 'disease_reports': disease_reports,
                 'mortality_reports': mortality_reports,
-                'risk_score': risk_score,
+                'risk_score': round(risk_score, 2),
                 'risk_level': risk_level,
             })
 
@@ -217,13 +230,23 @@ class HeatmapDataView(APIView):
 
 
 class FarmerResponsibilityView(APIView):
-    permission_classes = [role_permission('admin', 'technician')]
+    permission_classes = [role_permission('admin', 'inspector', 'technician', 'farmer')]
 
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
+        from accounts.permissions import is_farmer, get_user_farmer
         data = []
+        user = request.user
 
-        for farmer in Farmer.objects.all():
+        farmers_qs = Farmer.objects.all()
+        if is_farmer(user):
+            current_farmer = get_user_farmer(user)
+            if current_farmer:
+                farmers_qs = Farmer.objects.filter(pk=current_farmer.pk)
+            else:
+                farmers_qs = Farmer.objects.none()
+
+        for farmer in farmers_qs:
             cages = Cage.objects.filter(cage_farmers__farmer=farmer)
             cage_ids = cages.values_list('id', flat=True)
 

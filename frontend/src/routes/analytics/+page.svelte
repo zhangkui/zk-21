@@ -8,11 +8,13 @@
 
   let loading = true;
   let errorMsg: string | null = null;
-  let diseaseTrendData: any = null;
-  let mortalityData: any = null;
-  let mortalityStats: any = null;
-  let heatmapMarkers: { lat: number; lng: number; popup?: string; riskLevel?: string }[] = [];
+  let rawTrends: any[] = [];
+  let rawMortalityStats: any = null;
+  let rawMortalityCauses: any[] = [];
+  let heatmapData: HighRiskArea[] = [];
   let farmerResponsibility: any[] = [];
+  let diseaseTrendData: any;
+  let mortalityData: any;
 
   const diseaseTypeLabels: Record<string, string> = {
     bacterial: '细菌性疾病',
@@ -32,6 +34,35 @@
     nutritional: 'rgba(139, 92, 246, 0.8)',
     environmental: 'rgba(14, 165, 233, 0.8)',
     other: 'rgba(107, 114, 128, 0.8)'
+  };
+
+  const causeColors = [
+    'rgba(239, 68, 68, 0.8)',
+    'rgba(245, 158, 11, 0.8)',
+    'rgba(59, 130, 246, 0.8)',
+    'rgba(34, 197, 94, 0.8)',
+    'rgba(139, 92, 246, 0.8)',
+    'rgba(107, 114, 128, 0.8)',
+    'rgba(236, 72, 153, 0.8)'
+  ];
+
+  $: diseaseTrendData = {
+    labels: rawTrends.map((t) => t.month),
+    datasets: Object.keys(diseaseTypeLabels).map((dt) => ({
+      label: diseaseTypeLabels[dt],
+      data: rawTrends.map((t) => (t && typeof t[dt] === 'number' ? t[dt] : 0)),
+      backgroundColor: diseaseTypeColors[dt]
+    }))
+  };
+
+  $: mortalityData = {
+    labels: rawMortalityCauses.map((c: any) => c.cause_display),
+    datasets: [
+      {
+        data: rawMortalityCauses.map((c: any) => c.total_mortality ?? 0),
+        backgroundColor: causeColors
+      }
+    ]
   };
 
   const farmerColumns = [
@@ -61,6 +92,21 @@
     return level === 'critical' ? '危急' : level === 'high' ? '高' : level === 'medium' ? '中' : '低';
   }
 
+  $: heatmapMarkers = heatmapData.map((area) => ({
+    lat: area.lat,
+    lng: area.lng,
+    riskLevel: area.risk_level,
+    popup: `<div class="p-2 min-w-[180px]">
+      <h4 class="font-semibold text-gray-900">${area.name}</h4>
+      ${area.location ? `<p class="text-sm text-gray-600 mt-1">位置: ${area.location}</p>` : ''}
+      <p class="text-sm text-gray-600">风险等级: ${riskLabel(area.risk_level)}</p>
+      <p class="text-sm text-gray-600">风险分数: ${area.risk_score}</p>
+      <p class="text-sm text-gray-600">异常网箱: ${area.abnormal_cages ?? area.abnormal_cage_count ?? '-'}/${area.total_cages ?? '-'}</p>
+      <p class="text-sm text-gray-600">近7天病害上报: ${area.disease_reports ?? 0} 起</p>
+      <p class="text-sm text-gray-600">近7天死亡上报: ${area.mortality_reports ?? 0} 起</p>
+    </div>`
+  }));
+
   async function loadData() {
     loading = true;
     errorMsg = null;
@@ -72,58 +118,20 @@
     ]);
 
     if (results[0].status === 'fulfilled') {
-      const trends: any[] = results[0].value.data || [];
-      const diseaseTypes = Object.keys(diseaseTypeLabels);
-      diseaseTrendData = {
-        labels: trends.map((t) => t.month),
-        datasets: diseaseTypes.map((dt) => ({
-          label: diseaseTypeLabels[dt],
-          data: trends.map((t) => t[dt] || 0),
-          backgroundColor: diseaseTypeColors[dt]
-        }))
-      };
+      rawTrends = results[0].value.data || [];
     } else {
       console.error('病害趋势加载失败', results[0].reason);
     }
 
     if (results[1].status === 'fulfilled') {
-      mortalityStats = results[1].value.data;
-      const causeStats = mortalityStats?.cause_statistics || [];
-      mortalityData = {
-        labels: causeStats.map((c: any) => c.cause_display),
-        datasets: [{
-          data: causeStats.map((c: any) => c.total_mortality),
-          backgroundColor: [
-            'rgba(239, 68, 68, 0.8)',
-            'rgba(245, 158, 11, 0.8)',
-            'rgba(59, 130, 246, 0.8)',
-            'rgba(34, 197, 94, 0.8)',
-            'rgba(139, 92, 246, 0.8)',
-            'rgba(107, 114, 128, 0.8)',
-            'rgba(236, 72, 153, 0.8)'
-          ]
-        }]
-      };
+      rawMortalityStats = results[1].value.data;
+      rawMortalityCauses = rawMortalityStats?.cause_statistics || [];
     } else {
       console.error('死亡率统计加载失败', results[1].reason);
     }
 
     if (results[2].status === 'fulfilled') {
-      const heatmapData: HighRiskArea[] = results[2].value.data || [];
-      heatmapMarkers = heatmapData.map((area) => ({
-        lat: area.lat,
-        lng: area.lng,
-        riskLevel: area.risk_level,
-        popup: `<div class="p-2 min-w-[180px]">
-          <h4 class="font-semibold text-gray-900">${area.name}</h4>
-          ${area.location ? `<p class="text-sm text-gray-600 mt-1">位置: ${area.location}</p>` : ''}
-          <p class="text-sm text-gray-600">风险等级: ${riskLabel(area.risk_level)}</p>
-          <p class="text-sm text-gray-600">风险分数: ${area.risk_score}</p>
-          <p class="text-sm text-gray-600">异常网箱: ${area.abnormal_cages ?? area.abnormal_cage_count ?? '-'}/${area.total_cages ?? '-'}</p>
-          <p class="text-sm text-gray-600">近7天病害上报: ${area.disease_reports ?? 0} 起</p>
-          <p class="text-sm text-gray-600">近7天死亡上报: ${area.mortality_reports ?? 0} 起</p>
-        </div>`
-      }));
+      heatmapData = results[2].value.data || [];
     } else {
       console.error('热力图加载失败', results[2].reason);
     }
@@ -146,91 +154,81 @@
   });
 </script>
 
-{#if loading}
-  <div class="flex items-center justify-center py-20">
-    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-    <span class="ml-3 text-gray-500">加载中...</span>
-  </div>
-{:else}
-  <div class="space-y-6">
-    <h2 class="text-2xl font-bold text-gray-900">统计分析</h2>
+<div class="space-y-6 relative">
+  {#if loading}
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/70 rounded-xl">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <span class="ml-3 text-gray-500">加载中...</span>
+    </div>
+  {/if}
 
-    {#if errorMsg}
-      <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-        {errorMsg}
+  <h2 class="text-2xl font-bold text-gray-900">统计分析</h2>
+
+  {#if errorMsg}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+      {errorMsg}
+    </div>
+  {/if}
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">高风险养殖区热力图</h3>
+    <MapView markers={heatmapMarkers} center={[30.0, 118.0]} zoom={6} height="400px" />
+    <div class="flex items-center gap-6 mt-4 justify-center">
+      <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-green-500"></div>
+        <span class="text-sm text-gray-600">低风险</span>
       </div>
-    {/if}
-
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">高风险养殖区热力图</h3>
-      <MapView markers={heatmapMarkers} center={[30.0, 118.0]} zoom={6} height="400px" />
-      <div class="flex items-center gap-6 mt-4 justify-center">
-        <div class="flex items-center gap-2">
-          <div class="w-4 h-4 rounded-full bg-green-500"></div>
-          <span class="text-sm text-gray-600">低风险</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-4 h-4 rounded-full bg-yellow-500"></div>
-          <span class="text-sm text-gray-600">中风险</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-4 h-4 rounded-full bg-red-500"></div>
-          <span class="text-sm text-gray-600">高风险</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-4 h-4 rounded-full bg-amber-900"></div>
-          <span class="text-sm text-gray-600">危急</span>
-        </div>
+      <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-yellow-500"></div>
+        <span class="text-sm text-gray-600">中风险</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-red-500"></div>
+        <span class="text-sm text-gray-600">高风险</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-amber-900"></div>
+        <span class="text-sm text-gray-600">危急</span>
       </div>
     </div>
+  </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">病害趋势分析</h3>
-        {#if diseaseTrendData}
-          <Chart type="bar" data={diseaseTrendData} height="350px" />
-        {:else}
-          <p class="text-gray-500 text-center py-10">暂无数据</p>
-        {/if}
-      </div>
-
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">死亡率统计（按原因）</h3>
-        {#if mortalityStats}
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div class="bg-gray-50 rounded-lg p-3 text-center">
-              <p class="text-xs text-gray-500">总上报数</p>
-              <p class="text-xl font-bold text-gray-900">{mortalityStats.total_reports ?? 0}</p>
-            </div>
-            <div class="bg-gray-50 rounded-lg p-3 text-center">
-              <p class="text-xs text-gray-500">总死亡数(尾)</p>
-              <p class="text-xl font-bold text-red-600">{mortalityStats.total_mortality ?? 0}</p>
-            </div>
-            <div class="bg-gray-50 rounded-lg p-3 text-center">
-              <p class="text-xs text-gray-500">近30天上报</p>
-              <p class="text-xl font-bold text-gray-900">{mortalityStats.recent_30_days_reports ?? 0}</p>
-            </div>
-            <div class="bg-gray-50 rounded-lg p-3 text-center">
-              <p class="text-xs text-gray-500">近30天死亡</p>
-              <p class="text-xl font-bold text-red-600">{mortalityStats.recent_30_days_mortality ?? 0}</p>
-            </div>
-          </div>
-        {/if}
-        {#if mortalityData}
-          <Chart type="doughnut" data={mortalityData} height="300px" />
-        {:else}
-          <p class="text-gray-500 text-center py-10">暂无数据</p>
-        {/if}
-      </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">病害趋势分析</h3>
+      <Chart type="bar" data={diseaseTrendData} height="350px" />
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">养殖户责任归档</h3>
-      <DataTable
-        columns={farmerColumns}
-        data={farmerResponsibility}
-        onRowClick={(row) => (window.location.href = `/farmers/${row.farmer_id}`)}
-      />
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">死亡率统计（按原因）</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-gray-50 rounded-lg p-3 text-center">
+          <p class="text-xs text-gray-500">总上报数</p>
+          <p class="text-xl font-bold text-gray-900">{rawMortalityStats?.total_reports ?? 0}</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3 text-center">
+          <p class="text-xs text-gray-500">总死亡数(尾)</p>
+          <p class="text-xl font-bold text-red-600">{rawMortalityStats?.total_mortality ?? 0}</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3 text-center">
+          <p class="text-xs text-gray-500">近30天上报</p>
+          <p class="text-xl font-bold text-gray-900">{rawMortalityStats?.recent_30_days_reports ?? 0}</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3 text-center">
+          <p class="text-xs text-gray-500">近30天死亡</p>
+          <p class="text-xl font-bold text-red-600">{rawMortalityStats?.recent_30_days_mortality ?? 0}</p>
+        </div>
+      </div>
+      <Chart type="doughnut" data={mortalityData} height="300px" />
     </div>
   </div>
-{/if}
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">养殖户责任归档</h3>
+    <DataTable
+      columns={farmerColumns}
+      data={farmerResponsibility}
+      onRowClick={(row) => (window.location.href = `/farmers/${row.farmer_id}`)}
+    />
+  </div>
+</div>

@@ -106,7 +106,7 @@ class RecentReportsView(APIView):
 
 
 class DiseaseTrendsView(APIView):
-    permission_classes = [role_permission('admin', 'technician')]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         trends = []
@@ -148,7 +148,7 @@ class DiseaseTrendsView(APIView):
 
 
 class MortalityStatsView(APIView):
-    permission_classes = [role_permission('admin', 'technician')]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         now = timezone.now()
