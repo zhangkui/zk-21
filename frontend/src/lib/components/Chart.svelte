@@ -13,7 +13,6 @@
 
   let _loadPromise: Promise<any> | null = null;
   let _queue: Promise<void> = Promise.resolve();
-  let _pendingKey: string | null = null;
   let _chartRef: { instance: ChartJSType | null; lastType: string | null; lastSig: string } = {
     instance: null,
     lastType: null,
@@ -145,20 +144,17 @@
 
   function scheduleRender() {
     if (_destroyed) return;
-    const key = renderKey();
-    _queue = _queue.then(async () => {
-      if (_destroyed) return;
-      _pendingKey = null;
-      await _doRender();
-    }).catch((err) => {
-      console.error('Chart render error:', err);
-    });
-    void key;
+    _queue = _queue
+      .then(async () => {
+        if (_destroyed) return;
+        await _doRender();
+      })
+      .catch((err) => {
+        console.error('Chart render error:', err);
+      });
   }
 
-  $: if (isBrowser) {
-    scheduleRender();
-  }
+  $: hasData, data, type, options, isBrowser, scheduleRender();
 
   onMount(async () => {
     isBrowser = true;
