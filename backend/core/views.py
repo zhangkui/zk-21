@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Q, Case, When, Value, CharField
+from django.db.models import Count, Q, Case, When, Value, CharField, Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import SeaArea, Farmer, Cage, CageFarmer
@@ -26,40 +26,42 @@ class DashboardStatsView(APIView):
         from disease.models import DiseaseReport, MortalityReport
 
         user = request.user
-        if is_farmer(user):
-            farmer = get_user_farmer(user)
-            if farmer:
-                cage_ids = list(Cage.objects.filter(cage_farmers__farmer=farmer).values_list('id', flat=True))
-                cages = Cage.objects.filter(id__in=cage_ids)
-                pending_disease = DiseaseReport.objects.filter(cage_id__in=cage_ids, status='pending').count()
-                pending_mortality = MortalityReport.objects.filter(cage_id__in=cage_ids, status='pending').count()
-                pending_reports = pending_disease + pending_mortality
-                abnormal_cages = cages.filter(status='abnormal').count()
-                data = {
-                    'sea_areas': SeaArea.objects.filter(cages__in=cages).distinct().count(),
-                    'cages': cages.count(),
-                    'farmers': 1,
-                    'pending_reports': pending_reports,
-                    'pending_disease': pending_disease,
-                    'pending_mortality': pending_mortality,
-                    'abnormal_cages': abnormal_cages,
-                    'high_risk_areas': 0,
-                }
-                return Response(data)
+        farmer = get_user_farmer(user) if is_farmer(user) else None
+        cage_ids = None
+        if is_farmer(user) and farmer:
+            cage_ids = list(Cage.objects.filter(cage_farmers__farmer=farmer).values_list('id', flat=True))
 
-        sea_areas = SeaArea.objects.count()
-        cages = Cage.objects.count()
-        farmers = Farmer.objects.count()
+        if cage_ids is not None:
+            cages_qs = Cage.objects.filter(id__in=cage_ids)
+            sea_areas_qs = SeaArea.objects.filter(cages__in=cages_qs).distinct()
+            farmers_qs = Farmer.objects.filter(pk=farmer.pk) if farmer else Farmer.objects.none()
+        else:
+            cages_qs = Cage.objects.all()
+            sea_areas_qs = SeaArea.objects.all()
+            farmers_qs = Farmer.objects.all()
 
-        pending_disease = DiseaseReport.objects.filter(status='pending').count()
-        pending_mortality = MortalityReport.objects.filter(status='pending').count()
+        sea_areas = sea_areas_qs.count()
+        cages = cages_qs.count()
+        farmers = farmers_qs.count()
+
+        disease_qs = DiseaseReport.objects.all()
+        mortality_qs = MortalityReport.objects.all()
+        if cage_ids is not None:
+            disease_qs = disease_qs.filter(cage_id__in=cage_ids)
+            mortality_qs = mortality_qs.filter(cage_id__in=cage_ids)
+
+        pending_disease = disease_qs.filter(status='pending').count()
+        pending_mortality = mortality_qs.filter(status='pending').count()
         pending_reports = pending_disease + pending_mortality
+        total_reports = disease_qs.count() + mortality_qs.count()
 
-        abnormal_cages = Cage.objects.filter(status='abnormal').count()
+        abnormal_cages = cages_qs.filter(status='abnormal').count()
 
         high_risk_areas = 0
-        for area in SeaArea.objects.all():
+        for area in sea_areas_qs:
             area_cages = area.cages.all()
+            if cage_ids is not None:
+                area_cages = area_cages.filter(id__in=cage_ids)
             abnormal = area_cages.filter(
                 Q(disease_reports__status='pending') |
                 Q(mortality_reports__status='pending') |
@@ -68,15 +70,37 @@ class DashboardStatsView(APIView):
             if abnormal >= 3:
                 high_risk_areas += 1
 
+        farmers_with_issues = 0
+        for f in farmers_qs:
+            f_cages = Cage.objects.filter(cage_farmers__farmer=f)
+            if cage_ids is not None:
+                f_cages = f_cages.filter(id__in=cage_ids)
+            f_cage_ids = list(f_cages.values_list('id', flat=True))
+            has_pending = (
+                DiseaseReport.objects.filter(cage_id__in=f_cage_ids, status='pending').exists()
+                or MortalityReport.objects.filter(cage_id__in=f_cage_ids, status='pending').exists()
+            )
+            if has_pending:
+                farmers_with_issues += 1
+
+        def pct(part, whole):
+            return round(part / whole * 100, 1) if whole else 0.0
+
         data = {
-            'sea_areas': sea_areas,
-            'cages': cages,
-            'farmers': farmers,
-            'pending_reports': pending_reports,
+            'sea_areas_count': sea_areas,
+            'cages_count': cages,
+            'farmers_count': farmers,
+            'pending_reports_count': pending_reports,
+            'sea_areas_percentage': pct(high_risk_areas, sea_areas),
+            'cages_percentage': pct(abnormal_cages, cages),
+            'farmers_percentage': pct(farmers_with_issues, farmers),
+            'pending_reports_percentage': pct(pending_reports, total_reports),
+            'high_risk_areas': high_risk_areas,
+            'abnormal_cages': abnormal_cages,
             'pending_disease': pending_disease,
             'pending_mortality': pending_mortality,
-            'abnormal_cages': abnormal_cages,
-            'high_risk_areas': high_risk_areas,
+            'total_reports': total_reports,
+            'farmers_with_issues': farmers_with_issues,
         }
         return Response(data)
 
@@ -86,6 +110,7 @@ class MonthlyTrendsView(APIView):
 
     def get(self, request):
         from disease.models import DiseaseReport, MortalityReport
+        from inspection.models import InspectionRecord
         trends = []
         now = timezone.now()
         user = request.user
@@ -116,11 +141,16 @@ class MonthlyTrendsView(APIView):
             disease_count = disease_qs.count()
             mortality_count = mortality_qs.count()
             total_mortality = sum(r.mortality_count for r in mortality_qs)
+            inspection_count = InspectionRecord.objects.filter(
+                created_at__gte=month_start,
+                created_at__lte=month_end
+            ).count()
 
             trends.append({
                 'month': month_start.strftime('%Y-%m'),
-                'disease_reports': disease_count,
-                'mortality_reports': mortality_count,
+                'disease_count': disease_count,
+                'mortality_count': mortality_count,
+                'inspection_count': inspection_count,
                 'total_mortality': total_mortality,
             })
 
@@ -168,6 +198,8 @@ class HeatmapDataView(APIView):
                 risk_level = 'medium'
 
             data.append({
+                'id': area.id,
+                'name': area.name,
                 'sea_area_id': area.id,
                 'sea_area_name': area.name,
                 'location': area.location,
@@ -218,6 +250,15 @@ class FarmerResponsibilityView(APIView):
                 r.mortality_count for r in MortalityReport.objects.filter(cage_id__in=cage_ids)
             )
 
+            responsibility_score = pending_disease + pending_mortality + anomaly_disease + anomaly_mortality
+            risk_level = 'low'
+            if responsibility_score >= 10:
+                risk_level = 'critical'
+            elif responsibility_score >= 5:
+                risk_level = 'high'
+            elif responsibility_score >= 2:
+                risk_level = 'medium'
+
             data.append({
                 'farmer_id': farmer.id,
                 'farmer_name': farmer.name,
@@ -231,7 +272,8 @@ class FarmerResponsibilityView(APIView):
                 'anomaly_disease': anomaly_disease,
                 'anomaly_mortality': anomaly_mortality,
                 'total_mortality': total_mortality,
-                'responsibility_score': pending_disease + pending_mortality + anomaly_disease + anomaly_mortality,
+                'responsibility_score': responsibility_score,
+                'risk_level': risk_level,
             })
 
         data.sort(key=lambda x: x['responsibility_score'], reverse=True)
@@ -247,7 +289,7 @@ class SeaAreaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'name', 'area']
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'high_risk_areas'):
             return [IsAuthenticated()]
         return super().get_permissions()
 
@@ -275,25 +317,58 @@ class SeaAreaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def high_risk_areas(self, request):
-        threshold = int(request.query_params.get('threshold', 3))
+        from disease.models import DiseaseReport, MortalityReport
+        threshold = float(request.query_params.get('threshold', 20))
+        seven_days_ago = timezone.now() - timedelta(days=7)
         queryset = self.get_queryset()
         high_risk_areas = []
         for area in queryset:
-            abnormal_cages = area.cages.filter(
+            cages = area.cages.all()
+            cage_ids = list(cages.values_list('id', flat=True))
+
+            disease_reports = DiseaseReport.objects.filter(
+                cage_id__in=cage_ids,
+                report_time__gte=seven_days_ago
+            ).count()
+            mortality_reports = MortalityReport.objects.filter(
+                cage_id__in=cage_ids,
+                report_time__gte=seven_days_ago
+            ).count()
+            abnormal_cages = cages.filter(
                 Q(disease_reports__status='pending') |
                 Q(mortality_reports__status='pending') |
                 Q(status='abnormal')
             ).distinct().count()
-            if abnormal_cages >= threshold:
+
+            total_cages = cages.count()
+            risk_score = 0
+            if total_cages > 0:
+                risk_score = (abnormal_cages / total_cages) * 50 + (disease_reports + mortality_reports) * 2
+                risk_score = min(risk_score, 100)
+
+            risk_level = 'low'
+            if risk_score >= 80:
+                risk_level = 'critical'
+            elif risk_score >= 50:
+                risk_level = 'high'
+            elif risk_score >= 20:
+                risk_level = 'medium'
+
+            if risk_score >= threshold:
                 high_risk_areas.append({
                     'id': area.id,
                     'name': area.name,
                     'location': area.location,
+                    'lat': area.center_lat or 0,
+                    'lng': area.center_lng or 0,
+                    'risk_score': round(risk_score, 2),
+                    'risk_level': risk_level,
                     'abnormal_cage_count': abnormal_cages,
-                    'total_cages': area.cages.count(),
-                    'risk_level': 'high' if abnormal_cages >= 5 else 'medium'
+                    'total_cages': total_cages,
+                    'disease_reports': disease_reports,
+                    'mortality_reports': mortality_reports,
                 })
-        high_risk_areas.sort(key=lambda x: x['abnormal_cage_count'], reverse=True)
+        high_risk_areas.sort(key=lambda x: x['risk_score'], reverse=True)
         return Response(high_risk_areas)
 
     @action(detail=True, methods=['get'])

@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import DiseaseReport, MortalityReport
@@ -170,7 +170,7 @@ class MortalityStatsView(APIView):
 
         cause_stats = base_qs.values('cause').annotate(
             count=Count('id'),
-            total_mortality=Count('mortality_count')
+            total_mortality=Sum('mortality_count')
         ).order_by('-total_mortality')
 
         cause_data = []
@@ -475,7 +475,7 @@ class MortalityReportViewSet(viewsets.ModelViewSet):
         total_mortality = sum(r.mortality_count for r in queryset)
         cause_stats = queryset.values('cause').annotate(
             count=Count('id'),
-            total_mortality=Count('mortality_count')
+            total_mortality=Sum('mortality_count')
         )
         
         seven_days_ago = timezone.now() - timedelta(days=7)
@@ -681,7 +681,7 @@ class AnomalyDetectionViewSet(viewsets.ViewSet):
         pending_mortality = pending_mortality_qs.count()
         high_severity = high_severity_qs.count()
         high_mortality_cages = high_mortality_qs.values('cage').annotate(
-            total=Count('mortality_count')
+            total=Sum('mortality_count')
         ).filter(total__gte=50).count()
         
         data = {

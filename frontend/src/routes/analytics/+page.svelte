@@ -3,17 +3,18 @@
   import Chart from '$lib/components/Chart.svelte';
   import MapView from '$lib/components/MapView.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
-  import { analyticsApi, farmerApi, diseaseReportApi, mortalityReportApi } from '$lib/stores/api';
-  import type { Farmer, DiseaseReport, MortalityReport, HighRiskArea } from '$lib/types';
+  import { analyticsApi } from '$lib/stores/api';
+  import type { HighRiskArea } from '$lib/types';
 
   let loading = true;
   let errorMsg: string | null = null;
   let diseaseTrendData: any = null;
   let mortalityData: any = null;
+  let mortalityStats: any = null;
   let heatmapMarkers: { lat: number; lng: number; popup?: string; riskLevel?: string }[] = [];
   let farmerResponsibility: any[] = [];
 
-  const diseaseTypeMap: Record<string, string> = {
+  const diseaseTypeLabels: Record<string, string> = {
     bacterial: '细菌性疾病',
     viral: '病毒性疾病',
     parasitic: '寄生虫病',
@@ -23,22 +24,23 @@
     other: '其他'
   };
 
-  const causeMap: Record<string, string> = {
-    disease: '疾病',
-    predation: '敌害',
-    environment: '环境因素',
-    feeding: '投喂问题',
-    operation: '操作失误',
-    unknown: '原因不明',
-    other: '其他'
+  const diseaseTypeColors: Record<string, string> = {
+    bacterial: 'rgba(239, 68, 68, 0.8)',
+    viral: 'rgba(245, 158, 11, 0.8)',
+    parasitic: 'rgba(59, 130, 246, 0.8)',
+    fungal: 'rgba(34, 197, 94, 0.8)',
+    nutritional: 'rgba(139, 92, 246, 0.8)',
+    environmental: 'rgba(14, 165, 233, 0.8)',
+    other: 'rgba(107, 114, 128, 0.8)'
   };
 
   const farmerColumns = [
-    { key: 'name', label: '养殖户' },
-    { key: 'sea_area_name', label: '所属海区' },
+    { key: 'farmer_name', label: '养殖户' },
+    { key: 'sea_area', label: '所属海区' },
     { key: 'cage_count', label: '关联网箱数' },
-    { key: 'disease_count', label: '病害次数' },
-    { key: 'mortality_count', label: '死亡次数' },
+    { key: 'disease_reports', label: '病害次数' },
+    { key: 'mortality_reports', label: '死亡次数' },
+    { key: 'total_mortality', label: '死亡总数(尾)' },
     {
       key: 'risk_level',
       label: '风险等级',
@@ -55,33 +57,42 @@
     }
   ];
 
+  function riskLabel(level: string) {
+    return level === 'critical' ? '危急' : level === 'high' ? '高' : level === 'medium' ? '中' : '低';
+  }
+
   async function loadData() {
     loading = true;
-    try {
-      const [diseaseRes, mortalityRes, heatmapRes, farmerRes, diseaseReportsRes, mortalityReportsRes] = await Promise.all([
-        analyticsApi.getDiseaseTrends(),
-        analyticsApi.getMortalityStats(),
-        analyticsApi.getHeatmapData(),
-        farmerApi.getAll(),
-        diseaseReportApi.getAll(),
-        mortalityReportApi.getAll()
-      ]);
+    errorMsg = null;
+    const results = await Promise.allSettled([
+      analyticsApi.getDiseaseTrends(),
+      analyticsApi.getMortalityStats(),
+      analyticsApi.getHeatmapData(),
+      analyticsApi.getFarmerResponsibility()
+    ]);
 
-      const diseaseReports = diseaseReportsRes.data.results;
-      const mortalityReports = mortalityReportsRes.data.results;
-      const farmers = farmerRes.data.results;
+    if (results[0].status === 'fulfilled') {
+      const trends: any[] = results[0].value.data || [];
+      const diseaseTypes = Object.keys(diseaseTypeLabels);
+      diseaseTrendData = {
+        labels: trends.map((t) => t.month),
+        datasets: diseaseTypes.map((dt) => ({
+          label: diseaseTypeLabels[dt],
+          data: trends.map((t) => t[dt] || 0),
+          backgroundColor: diseaseTypeColors[dt]
+        }))
+      };
+    } else {
+      console.error('病害趋势加载失败', results[0].reason);
+    }
 
-      diseaseTrendData = diseaseRes.data;
-
-      const mortalityByCause: Record<string, number> = {};
-      mortalityReports.forEach((r) => {
-        mortalityByCause[r.cause] = (mortalityByCause[r.cause] || 0) + r.mortality_count;
-      });
-
+    if (results[1].status === 'fulfilled') {
+      mortalityStats = results[1].value.data;
+      const causeStats = mortalityStats?.cause_statistics || [];
       mortalityData = {
-        labels: Object.keys(mortalityByCause).map((k) => causeMap[k] || k),
+        labels: causeStats.map((c: any) => c.cause_display),
         datasets: [{
-          data: Object.values(mortalityByCause),
+          data: causeStats.map((c: any) => c.total_mortality),
           backgroundColor: [
             'rgba(239, 68, 68, 0.8)',
             'rgba(245, 158, 11, 0.8)',
@@ -93,49 +104,41 @@
           ]
         }]
       };
+    } else {
+      console.error('死亡率统计加载失败', results[1].reason);
+    }
 
-      const heatmapData: HighRiskArea[] = heatmapRes.data;
-
+    if (results[2].status === 'fulfilled') {
+      const heatmapData: HighRiskArea[] = results[2].value.data || [];
       heatmapMarkers = heatmapData.map((area) => ({
         lat: area.lat,
         lng: area.lng,
         riskLevel: area.risk_level,
-        popup: `<div class="p-2">
-          <h4 class="font-semibold">${area.name}</h4>
-          <p class="text-sm text-gray-600">风险等级: ${area.risk_level === 'critical' ? '危急' : area.risk_level === 'high' ? '高' : area.risk_level === 'medium' ? '中' : '低'}</p>
+        popup: `<div class="p-2 min-w-[180px]">
+          <h4 class="font-semibold text-gray-900">${area.name}</h4>
+          ${area.location ? `<p class="text-sm text-gray-600 mt-1">位置: ${area.location}</p>` : ''}
+          <p class="text-sm text-gray-600">风险等级: ${riskLabel(area.risk_level)}</p>
           <p class="text-sm text-gray-600">风险分数: ${area.risk_score}</p>
+          <p class="text-sm text-gray-600">异常网箱: ${area.abnormal_cages ?? area.abnormal_cage_count ?? '-'}/${area.total_cages ?? '-'}</p>
+          <p class="text-sm text-gray-600">近7天病害上报: ${area.disease_reports ?? 0} 起</p>
+          <p class="text-sm text-gray-600">近7天死亡上报: ${area.mortality_reports ?? 0} 起</p>
         </div>`
       }));
-
-      farmerResponsibility = farmers.map((farmer) => {
-        const farmerDiseaseCount = diseaseReports.filter((r) => {
-          const cage = r.cage;
-          return true;
-        }).length;
-        const farmerMortalityCount = mortalityReports.filter((r) => {
-          const cage = r.cage;
-          return true;
-        }).length;
-        const totalIssues = farmerDiseaseCount + farmerMortalityCount;
-        let riskLevel = 'low';
-        if (totalIssues > 10) riskLevel = 'critical';
-        else if (totalIssues > 5) riskLevel = 'high';
-        else if (totalIssues > 2) riskLevel = 'medium';
-
-        return {
-          ...farmer,
-          cage_count: farmer.cage_farmers?.length || 0,
-          disease_count: farmerDiseaseCount,
-          mortality_count: farmerMortalityCount,
-          risk_level: riskLevel
-        };
-      });
-    } catch (err) {
-      console.error('Failed to load analytics data:', err);
-      errorMsg = '加载数据失败，请稍后重试';
-    } finally {
-      loading = false;
+    } else {
+      console.error('热力图加载失败', results[2].reason);
     }
+
+    if (results[3].status === 'fulfilled') {
+      farmerResponsibility = results[3].value.data || [];
+    } else {
+      console.error('养殖户责任加载失败', results[3].reason);
+    }
+
+    const failedCount = results.filter((r) => r.status === 'rejected').length;
+    if (failedCount === results.length) {
+      errorMsg = '加载数据失败，请稍后重试';
+    }
+    loading = false;
   }
 
   onMount(() => {
@@ -151,6 +154,12 @@
 {:else}
   <div class="space-y-6">
     <h2 class="text-2xl font-bold text-gray-900">统计分析</h2>
+
+    {#if errorMsg}
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+        {errorMsg}
+      </div>
+    {/if}
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h3 class="text-lg font-semibold text-gray-900 mb-4">高风险养殖区热力图</h3>
@@ -180,13 +189,37 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4">病害趋势分析</h3>
         {#if diseaseTrendData}
           <Chart type="bar" data={diseaseTrendData} height="350px" />
+        {:else}
+          <p class="text-gray-500 text-center py-10">暂无数据</p>
         {/if}
       </div>
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">死亡率统计（按原因）</h3>
+        {#if mortalityStats}
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <p class="text-xs text-gray-500">总上报数</p>
+              <p class="text-xl font-bold text-gray-900">{mortalityStats.total_reports ?? 0}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <p class="text-xs text-gray-500">总死亡数(尾)</p>
+              <p class="text-xl font-bold text-red-600">{mortalityStats.total_mortality ?? 0}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <p class="text-xs text-gray-500">近30天上报</p>
+              <p class="text-xl font-bold text-gray-900">{mortalityStats.recent_30_days_reports ?? 0}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <p class="text-xs text-gray-500">近30天死亡</p>
+              <p class="text-xl font-bold text-red-600">{mortalityStats.recent_30_days_mortality ?? 0}</p>
+            </div>
+          </div>
+        {/if}
         {#if mortalityData}
-          <Chart type="doughnut" data={mortalityData} height="350px" />
+          <Chart type="doughnut" data={mortalityData} height="300px" />
+        {:else}
+          <p class="text-gray-500 text-center py-10">暂无数据</p>
         {/if}
       </div>
     </div>
@@ -196,7 +229,7 @@
       <DataTable
         columns={farmerColumns}
         data={farmerResponsibility}
-        onRowClick={(row) => (window.location.href = `/farmers/${row.id}`)}
+        onRowClick={(row) => (window.location.href = `/farmers/${row.farmer_id}`)}
       />
     </div>
   </div>

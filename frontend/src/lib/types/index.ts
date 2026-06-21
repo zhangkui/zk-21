@@ -170,6 +170,16 @@ export interface DashboardStats {
   cages_count: number;
   farmers_count: number;
   pending_reports_count: number;
+  sea_areas_percentage?: number;
+  cages_percentage?: number;
+  farmers_percentage?: number;
+  pending_reports_percentage?: number;
+  high_risk_areas?: number;
+  abnormal_cages?: number;
+  pending_disease?: number;
+  pending_mortality?: number;
+  total_reports?: number;
+  farmers_with_issues?: number;
 }
 
 export interface MonthlyTrend {
@@ -177,15 +187,24 @@ export interface MonthlyTrend {
   disease_count: number;
   mortality_count: number;
   inspection_count: number;
+  total_mortality?: number;
 }
 
 export interface HighRiskArea {
   id: number;
   name: string;
+  location?: string;
   lat: number;
   lng: number;
   risk_score: number;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
+  abnormal_cage_count?: number;
+  abnormal_cages?: number;
+  total_cages?: number;
+  disease_reports?: number;
+  mortality_reports?: number;
+  sea_area_id?: number;
+  sea_area_name?: string;
 }
 
 export interface RecentReport {
